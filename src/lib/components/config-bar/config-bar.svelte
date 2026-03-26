@@ -28,6 +28,7 @@
   let bpm = $state(90);
   let generated = $state(false);
   let isGenerating = $state(false);
+  let lastGeneratedBpm = $state<number | null>(null);
 
   let macros = $state<MacroControls>();
 
@@ -59,6 +60,8 @@
     { label: "tension", value: macros?.tension ?? 20 },
   ]);
 
+  const selectedBpm = $derived(Math.max(1, Math.round(Number(bpm) || 90)));
+
   let generateButtonLabel = $derived(
     isGenerating ? "Generating..." : generated ? "Generated" : "Generate",
   );
@@ -72,7 +75,8 @@
     left?.warmth === right?.warmth &&
     left?.entropy === right?.entropy &&
     left?.tension === right?.tension &&
-    left?.density === right?.density;
+    left?.density === right?.density &&
+    left?.hue === right?.hue;
 
   const generate = async () => {
     if (isGenerating) {
@@ -90,7 +94,7 @@
     isGenerating = true;
 
     try {
-      const sequence = Generator.song(60 * 3 + 30, macros, bpm);
+      const sequence = Generator.song(60 * 3 + 30, macros, selectedBpm);
 
       generationConfigStore.update((config) => ({
         ...config,
@@ -98,6 +102,7 @@
       }));
 
       generated = true;
+      lastGeneratedBpm = selectedBpm;
 
       return {
         message: "Your song was succesfully generated!",
@@ -122,10 +127,12 @@
     if (!file) {
       selectedFile = null;
       generated = false;
+      lastGeneratedBpm = null;
       return;
     }
 
     generated = false;
+    lastGeneratedBpm = null;
 
     const objectUrl = URL.createObjectURL(file);
     selectedFile = objectUrl;
@@ -159,6 +166,20 @@
   });
 
   $effect(() => {
+    if (lastGeneratedBpm === null || selectedBpm === lastGeneratedBpm) return;
+
+    generated = false;
+    lastGeneratedBpm = null;
+
+    if (!$generationConfigStore.sequence) return;
+
+    generationConfigStore.update((config) => ({
+      ...config,
+      sequence: undefined,
+    }));
+  });
+
+  $effect(() => {
     const nextValue = pixelationAmount;
 
     if (nextValue === undefined) return;
@@ -181,12 +202,12 @@
       <Tabs.Trigger
         value="account"
         class="data-[state=active]:shadow-mini dark:data-[state=active]:bg-muted h-8 rounded-[7px] bg-transparent py-2 data-[state=active]:bg-white"
-        >Account</Tabs.Trigger
+        >Settings</Tabs.Trigger
       >
       <Tabs.Trigger
-        value="password"
+        value="stats"
         class="data-[state=active]:shadow-mini dark:data-[state=active]:bg-muted h-8 rounded-[7px] bg-transparent py-2 data-[state=active]:bg-white"
-        >Password</Tabs.Trigger
+        >Stats</Tabs.Trigger
       >
     </Tabs.List>
     <ScrollArea class="h-0 flex-1">
@@ -222,7 +243,7 @@
                 </div>
                 <div class="flex flex-col gap-4">
                   <div class="flex flex-col gap-2">
-                    <Label for="bpm" class="text-xs">BPM: {bpm}</Label>
+                    <Label for="bpm" class="text-xs">BPM: {selectedBpm}</Label>
                     <Slider
                       type="single"
                       bind:value={bpm}
@@ -236,7 +257,7 @@
             </Card.Content>
           </Card.Root>
         </Tabs.Content>
-        <Tabs.Content value="password">
+        <Tabs.Content value="stats">
           <div class="flex shrink-0 flex-col gap-4 py-6">
             <RadarChart
               chartProps={{

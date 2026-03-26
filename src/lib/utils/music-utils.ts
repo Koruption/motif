@@ -1105,13 +1105,14 @@ function applyTemperature(weight: number, entropy: number): number {
   return Math.pow(weight, 1 / temperature);
 }
 
-function mapMacroToStyle(macros: MacroControls): GeneratorStyle {
+function mapMacroToStyle(macros: MacroControls, bpm = 90): GeneratorStyle {
   const energy = clamp(macros.energy, 0, 1);
   const brightness = clamp(macros.brightness, 0, 1);
   const warmth = clamp(macros.warmth, 0, 1);
   const entropy = clamp(macros.entropy, 0, 1);
   const tension = clamp(macros.tension, 0, 1);
   const density = clamp(macros.density, 0, 1);
+  const bpmFast = clamp((bpm - 88) / 72, 0, 1);
 
   const preferredRegisterMin = Math.round(lerp(45, 60, brightness));
   const preferredRegisterMax = Math.round(lerp(72, 90, brightness));
@@ -1122,10 +1123,15 @@ function mapMacroToStyle(macros: MacroControls): GeneratorStyle {
     modulationBias: lerp(0.25, 4.5, entropy * 0.6 + tension * 0.4),
     preserveNoteAcrossScaleBias: lerp(3, 1, entropy),
 
-    keepChordBias: lerp(5, 1, energy * 0.5 + entropy * 0.5) + warmth * 2,
-    noChordBias: lerp(1.2, 0.3, density),
-    chordChangeBias: lerp(1, 5, energy * 0.7 + density * 0.3),
-    chordContainsMelodyBias: lerp(6, 2, tension) + warmth * 2,
+    keepChordBias:
+      lerp(4, 0.7, energy * 0.4 + entropy * 0.2 + bpmFast * 0.4) + warmth * 1.2,
+    noChordBias: lerp(
+      -7.5,
+      -12,
+      density * 0.75 + warmth * 0.25 + bpmFast * 0.4,
+    ),
+    chordChangeBias: lerp(2, 7, energy * 0.45 + density * 0.25 + bpmFast * 0.3),
+    chordContainsMelodyBias: lerp(1.6, 0.2, tension) + warmth * 0.45,
     chordRootNearMelodyBias: lerp(2, 0.5, entropy),
     outOfScaleChordPenalty: lerp(-12, -2, tension * 0.7 + entropy * 0.3),
 
@@ -1134,38 +1140,44 @@ function mapMacroToStyle(macros: MacroControls): GeneratorStyle {
       lerp(4.5, 1.4, tension * 0.7 + entropy * 0.3) + warmth * 0.8,
     nonChordToneBias: lerp(1.1, 4.2, tension),
     leapPenalty: lerp(0.55, 0.08, energy),
-    repeatNoteBias: lerp(0.35, -0.2, energy * 0.7 + entropy * 0.3),
+    repeatNoteBias: lerp(
+      0.05,
+      -1.1,
+      energy * 0.45 + entropy * 0.2 + bpmFast * 0.35,
+    ),
     directionalDriftBias: lerp(0.45, 1.8, brightness),
     tensionNoteBias: lerp(1.2, 4.6, tension),
     arpeggioPathBias: lerp(0.25, 0.9, energy * 0.55 + brightness * 0.45),
     harmonyRefreshMelodyChance: lerp(
-      0.25,
-      0.78,
-      energy * 0.6 + entropy * 0.4,
+      0.48,
+      0.94,
+      energy * 0.35 + entropy * 0.15 + bpmFast * 0.5,
     ),
 
     preferredHarmonyDurations: remapDurationWeights(
-      [1, 2, 4, 8],
-      Math.min(1, 0.78 * energy + 0.22 * density),
-      4.2,
+      [0.25, 0.5, 1, 2, 4],
+      Math.min(1, 0.58 * energy + 0.18 * density + 0.5 * bpmFast),
+      6.4,
     ),
 
     preferredMelodyDurations: remapDurationWeights(
       [0.25, 0.5, 1, 2],
-      Math.min(1, 0.82 * energy + 0.18 * density),
-      4.4,
+      Math.min(1, 0.46 * energy + 0.14 * density + 0.58 * bpmFast),
+      6.8,
     ),
 
     maxLeapSemitones: Math.round(lerp(4, 14, energy)),
     preferredRegisterMin,
     preferredRegisterMax,
 
-    allowModulation: entropy > 0.2 || tension > 0.35,
-    allowNoChord: density < 0.8,
+    allowModulation: entropy > 0.16 || tension > 0.28 || brightness > 0.72,
+    allowNoChord: false,
     allowBorrowedChords: tension > 0.6 || entropy > 0.75,
     allowOutOfScaleMelody: tension > 0.7 || entropy > 0.85,
-    maxRelatedScales: Math.round(lerp(2, 8, entropy)),
-    maxMelodyCandidates: Math.round(lerp(10, 32, entropy * 0.7 + energy * 0.3)),
+    maxRelatedScales: Math.round(lerp(3, 9, entropy * 0.7 + brightness * 0.3)),
+    maxMelodyCandidates: Math.round(
+      lerp(18, 42, entropy * 0.35 + energy * 0.25 + bpmFast * 0.4),
+    ),
   };
 }
 
@@ -1176,6 +1188,7 @@ export type MacroControls = {
   entropy: number; // unpredictability / disorder / variance
   tension: number; // instability / suspendedness / urge to resolve
   density: number; // how much is happening
+  hue: number; // preserved hue fingerprint from the image
 };
 
 const DefaultMacros: MacroControls = {
@@ -1185,6 +1198,7 @@ const DefaultMacros: MacroControls = {
   entropy: 0.2,
   tension: 0.3,
   density: 0.5,
+  hue: 0.5,
 };
 
 type RhythmValue = 0.25 | 0.5 | 1 | 2 | 4 | 8;
@@ -1281,6 +1295,7 @@ type GeneratorStyle = {
 type GeneratorOptions = {
   tickBeats?: number; // e.g. 0.25 = 16th note grid
   macros?: Partial<MacroControls>;
+  bpm?: number;
   initialScale: Scale;
   initialNote: Note;
   initialChord?: Chord | null;
@@ -1297,7 +1312,7 @@ const DefaultStyle: GeneratorStyle = {
   keepChordBias: 3,
   noChordBias: 0.75,
   chordChangeBias: 1.5,
-  chordContainsMelodyBias: 4,
+  chordContainsMelodyBias: 1,
   chordRootNearMelodyBias: 1.5,
   outOfScaleChordPenalty: -8,
 
@@ -1359,7 +1374,7 @@ function scaleLabel(scale: Scale): string {
   return `${scale.name}:${scale.base.name}${scale.base.octave ?? ""}:${scale.structure.join(",")}`;
 }
 
-type DrumVoice = "kick" | "snare";
+type DrumVoice = "kick" | "snare" | "hat";
 
 type PlayableEventType = "note" | "chord" | "scale" | "drum";
 
@@ -1393,6 +1408,7 @@ export type PlayableSequence = {
   bpm: number;
   tickBeats: number;
   secondsPerBeat: number;
+  sourceHue: number;
 
   totalTicks: number;
   totalBeats: number;
@@ -1413,6 +1429,15 @@ function beatsToSeconds(beats: number, bpm: number): number {
   return beats * (60 / bpm);
 }
 
+function beatsToTransportTime(beats: number): string {
+  const totalSixteenths = Math.max(0, Math.round(beats * 4));
+  const bars = Math.floor(totalSixteenths / 16);
+  const remainder = totalSixteenths % 16;
+  const quarters = Math.floor(remainder / 4);
+  const sixteenths = remainder % 4;
+  return `${bars}:${quarters}:${sixteenths}`;
+}
+
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
@@ -1428,6 +1453,7 @@ function buildRepeatedDrumPattern(
   totalTicks: number,
   tickBeats: number,
   bpm: number,
+  startTickOffset = 0,
 ): PlayableEvent[] {
   if (totalTicks <= 0) return [];
 
@@ -1436,6 +1462,8 @@ function buildRepeatedDrumPattern(
   const bpmNormalized = clamp((bpm - 72) / 76, 0, 1);
   const oneTick = Math.max(tickBeats, 0.25);
   const stochasticGrid = bpm >= 132 ? 0.25 : 0.5;
+  const hatStep = bpm >= 132 ? 0.25 : 0.5;
+  const hatDuration = Math.min(oneTick, hatStep);
 
   const backbone: DrumPatternHit[] = [
     { voice: "kick", beat: 0, durationBeats: oneTick, velocity: 0.96 },
@@ -1448,6 +1476,26 @@ function buildRepeatedDrumPattern(
     { voice: "snare", beat: 1, durationBeats: oneTick, velocity: 0.78 },
     { voice: "snare", beat: 3, durationBeats: oneTick, velocity: 0.86 },
   ];
+
+  for (let beat = 0; beat < 4; beat += hatStep) {
+    const offbeat = Math.round((beat % 1) * 1000) !== 0;
+    const sixteenthOff = Math.round((beat % 0.5) * 1000) !== 0;
+    backbone.push({
+      voice: "hat",
+      beat,
+      durationBeats: hatDuration,
+      velocity:
+        bpm >= 132
+          ? sixteenthOff
+            ? 0.2
+            : offbeat
+              ? 0.34
+              : 0.28
+          : offbeat
+            ? 0.3
+            : 0.22,
+    });
+  }
 
   const stochasticCandidates: Array<
     DrumPatternHit & {
@@ -1510,6 +1558,34 @@ function buildRepeatedDrumPattern(
       velocity: 0.44,
       probability: 0.18 + bpmNormalized * 0.14,
     },
+    {
+      voice: "hat",
+      beat: 0.75,
+      durationBeats: hatDuration,
+      velocity: 0.18,
+      probability: 0.12 + bpmNormalized * 0.08,
+    },
+    {
+      voice: "hat",
+      beat: 1.25,
+      durationBeats: hatDuration,
+      velocity: 0.22,
+      probability: 0.16 + bpmNormalized * 0.1,
+    },
+    {
+      voice: "hat",
+      beat: 2.25,
+      durationBeats: hatDuration,
+      velocity: 0.2,
+      probability: 0.14 + bpmNormalized * 0.1,
+    },
+    {
+      voice: "hat",
+      beat: 3.25,
+      durationBeats: hatDuration,
+      velocity: 0.24,
+      probability: 0.18 + bpmNormalized * 0.12,
+    },
   ];
 
   const pattern = [...backbone];
@@ -1536,22 +1612,26 @@ function buildRepeatedDrumPattern(
 
       if (startBeat >= totalBeats) continue;
 
-      const startTick = Math.round(startBeat / tickBeats);
+      const startTick = startTickOffset + Math.round(startBeat / tickBeats);
       const durationTicks = Math.max(
         1,
         Math.round(hit.durationBeats / tickBeats),
       );
-      const endTick = Math.min(totalTicks - 1, startTick + durationTicks - 1);
+      const endTick = Math.min(
+        startTickOffset + totalTicks - 1,
+        startTick + durationTicks - 1,
+      );
+      const absoluteStartBeat = startTick * tickBeats;
 
       drums.push({
         type: "drum",
         startTick,
         endTick,
-        startBeat,
+        startBeat: absoluteStartBeat,
         durationBeats: durationTicks * tickBeats,
-        startSeconds: beatsToSeconds(startBeat, bpm),
+        startSeconds: beatsToSeconds(absoluteStartBeat, bpm),
         durationSeconds: beatsToSeconds(durationTicks * tickBeats, bpm),
-        measure: measureIndex + 1,
+        measure: Math.floor(absoluteStartBeat / 4) + 1,
         beatInMeasure: hit.beat,
         drum: hit.voice,
         velocity: hit.velocity,
@@ -1778,6 +1858,29 @@ function buildScaleTriads(scale: Scale, octave?: number): Chord[] {
   );
 }
 
+function harmonicRegisterPool(scale: Scale, currentNote: Note): Chord[] {
+  const melodyOctave = currentNote.octave ?? scale.base.octave ?? 4;
+  const lowerOctave = Math.max(2, melodyOctave - 2);
+  const middleOctave = Math.max(2, melodyOctave - 1);
+  const companionOctave = clamp(melodyOctave, 3, 6);
+  const upperOctave = Math.min(6, melodyOctave + 1);
+
+  const voicings = [
+    ...buildScaleTriads(scale, lowerOctave),
+    ...buildScaleTriads(scale, middleOctave),
+    ...buildScaleTriads(scale, companionOctave),
+    ...buildScaleTriads(scale, upperOctave),
+  ];
+
+  return dedupeBy(voicings, (chord) =>
+    chord
+      .notes()
+      .map((note) => note.keyedstr())
+      .sort()
+      .join("|"),
+  );
+}
+
 function maybeAddSevenths(scale: Scale, triads: Chord[]): Chord[] {
   const out: Chord[] = [...triads];
 
@@ -1830,6 +1933,8 @@ export const BPM = (bpm: number) => {
   return bpm;
 };
 
+const HUE_TONIC_CYCLE = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5] as const;
+
 type InitialSeed = {
   scale: Scale;
   note: Note;
@@ -1838,6 +1943,46 @@ type InitialSeed = {
 
 function chooseWeighted<T>(items: Array<{ value: T; weight: number }>): T {
   return weightedSample(items);
+}
+
+function macroSignature(macros: MacroControls, salt = 0): number {
+  const x =
+    macros.energy * 11.17 +
+    macros.brightness * 17.41 +
+    macros.warmth * 23.63 +
+    macros.entropy * 29.71 +
+    macros.tension * 31.19 +
+    macros.density * 37.13 +
+    macros.hue * 41.53 +
+    salt * 13.37;
+
+  return (((Math.sin(x) * 43758.5453123) % 1) + 1) % 1;
+}
+
+function chooseWeightedBySignature<T>(
+  items: Array<{ value: T; weight: number }>,
+  signature: number,
+): T {
+  const cleaned = items
+    .map((item) => ({
+      value: item.value,
+      weight: Number.isFinite(item.weight) ? Math.max(0, item.weight) : 0,
+    }))
+    .filter((item) => item.weight > 0);
+
+  if (cleaned.length === 0) {
+    throw new Error("chooseWeightedBySignature called with no weighted items.");
+  }
+
+  const total = cleaned.reduce((sum, item) => sum + item.weight, 0);
+  let cursor = clamp(signature, 0, 0.999999) * total;
+
+  for (const item of cleaned) {
+    cursor -= item.weight;
+    if (cursor <= 0) return item.value;
+  }
+
+  return cleaned[cleaned.length - 1].value;
 }
 
 function normalizeMacroValue(x: number | undefined, fallback: number): number {
@@ -1894,7 +2039,10 @@ function weightedDegreeChoice(
     return { value: note, weight };
   });
 
-  return chooseWeighted(candidates);
+  const signature =
+    macroSignature(macros, 0.17) * 0.65 + macroSignature(macros, 0.61) * 0.35;
+
+  return chooseWeightedBySignature(candidates, signature);
 }
 
 function chooseInitialStructure(macros: MacroControls): KeyStructure {
@@ -1905,25 +2053,63 @@ function chooseInitialStructure(macros: MacroControls): KeyStructure {
   const warmth = normalizeMacroValue(macros.warmth, DefaultMacros.warmth);
   const tension = normalizeMacroValue(macros.tension, DefaultMacros.tension);
   const entropy = normalizeMacroValue(macros.entropy, DefaultMacros.entropy);
+  const hue = normalizeMacroValue(macros.hue, DefaultMacros.hue);
 
-  // Simple first-pass mode palette.
-  // You can expand this later with Dorian, Lydian, Mixolydian, harmonic minor, etc.
-  const majorWeight = 1 + brightness * 4 + warmth * 1.5 - tension * 1.5;
+  const coolHue = hue >= 0.5 && hue <= 0.92 ? 1 : 0;
+  const warmHue = hue < 0.22 || hue > 0.88 ? 1 : 0;
+  const greenHue = hue >= 0.22 && hue < 0.5 ? 1 : 0;
 
-  const minorWeight = 1 + warmth * 2 + (1 - brightness) * 2 + tension * 1.25;
+  const hueBucket = clamp(Math.floor(hue * 12), 0, 11);
+  const hueStructureMap: KeyStructure[] = [
+    KeyStructures.Major,
+    KeyStructures.Lydian,
+    KeyStructures.Lydian,
+    KeyStructures.Major,
+    KeyStructures.Dorian,
+    KeyStructures.Dorian,
+    KeyStructures.Minor,
+    KeyStructures.Minor,
+    KeyStructures.Minor,
+    KeyStructures.Dorian,
+    KeyStructures.Lydian,
+    KeyStructures.Major,
+  ];
 
-  // Slightly brighter / more floating
-  const lydianWeight = 0.5 + brightness * 3 + entropy * 1.5 - warmth * 0.25;
+  const majorWeight =
+    1 + brightness * 5 + warmHue * 1.2 + warmth * 1.8 - tension * 1.8;
 
-  // Slightly warmer but still mobile
-  const dorianWeight = 0.5 + warmth * 2 + tension * 1.2 + entropy * 0.8;
+  const minorWeight =
+    1 + coolHue * 1.3 + warmth * 1.2 + (1 - brightness) * 2.8 + tension * 1.6;
 
-  const chosen = chooseWeighted<KeyStructure>([
-    { value: KeyStructures.Major, weight: Math.max(0.01, majorWeight) },
-    { value: KeyStructures.Minor, weight: Math.max(0.01, minorWeight) },
-    { value: KeyStructures.Lydian, weight: Math.max(0.01, lydianWeight) },
-    { value: KeyStructures.Dorian, weight: Math.max(0.01, dorianWeight) },
-  ]);
+  const lydianWeight =
+    0.4 + brightness * 4.4 + greenHue * 0.9 + entropy * 2 + (1 - warmth) * 0.4;
+
+  const dorianWeight =
+    0.5 + warmth * 2.4 + coolHue * 0.8 + tension * 1.5 + entropy * 1.1;
+
+  let chosen = chooseWeightedBySignature<KeyStructure>(
+    [
+      { value: KeyStructures.Major, weight: Math.max(0.01, majorWeight) },
+      { value: KeyStructures.Minor, weight: Math.max(0.01, minorWeight) },
+      { value: KeyStructures.Lydian, weight: Math.max(0.01, lydianWeight) },
+      { value: KeyStructures.Dorian, weight: Math.max(0.01, dorianWeight) },
+    ],
+    macroSignature(macros, 1.7),
+  );
+
+  const openness =
+    brightness * 0.48 + warmth * 0.17 + (1 - tension) * 0.23 + (1 - entropy) * 0.12;
+  const darkness =
+    (1 - brightness) * 0.34 + tension * 0.36 + entropy * 0.18 + coolHue * 0.12;
+  const hueDriven = hueStructureMap[hueBucket];
+
+  if (openness - darkness > 0.2) {
+    chosen = brightness > 0.72 || greenHue ? KeyStructures.Lydian : KeyStructures.Major;
+  } else if (darkness - openness > 0.2) {
+    chosen = tension > 0.62 || brightness < 0.34 ? KeyStructures.Minor : KeyStructures.Dorian;
+  } else if (macroSignature(macros, 1.91) > 0.35) {
+    chosen = hueDriven;
+  }
 
   return chosen;
 }
@@ -1935,33 +2121,21 @@ function chooseInitialTonic(macros: MacroControls, octave = 4): Note {
   );
   const warmth = normalizeMacroValue(macros.warmth, DefaultMacros.warmth);
   const tension = normalizeMacroValue(macros.tension, DefaultMacros.tension);
+  const density = normalizeMacroValue(macros.density, DefaultMacros.density);
+  const entropy = normalizeMacroValue(macros.entropy, DefaultMacros.entropy);
+  const energy = normalizeMacroValue(macros.energy, DefaultMacros.energy);
+  const hue = normalizeMacroValue(macros.hue, DefaultMacros.hue);
+  const hueBucket = clamp(Math.floor(hue * 12), 0, 11);
+  const circleOffset =
+    Math.round((entropy - 0.5) * 4) +
+    Math.round((tension - warmth) * 3) +
+    Math.round((brightness - 0.5) * 2) +
+    Math.round((energy - density) * 2);
+  const signatureOffset = Math.round((macroSignature(macros, 2.9) - 0.5) * 4);
+  const tonicCycleIndex = mod12(hueBucket + circleOffset + signatureOffset);
+  const tonicId = HUE_TONIC_CYCLE[tonicCycleIndex];
 
-  const tonicCandidates = [
-    new Note("C", octave),
-    new Note("D", octave),
-    new Note("E", octave),
-    new Note("F", octave),
-    new Note("G", octave),
-    new Note("A", octave),
-    new Note("B", octave),
-  ];
-
-  const candidates = tonicCandidates.map((note) => {
-    let weight = 1;
-
-    // Warmth tends to like flatter / rounder centers
-    if (["C", "F", "A"].includes(note.name)) weight += warmth * 1.5;
-
-    // Brightness tends to like clearer/lifted tonal centers
-    if (["D", "E", "G", "B"].includes(note.name)) weight += brightness * 1.25;
-
-    // Tension slightly favors tonal centers that can feel less settled
-    if (["B", "D"].includes(note.name)) weight += tension * 1.2;
-
-    return { value: note, weight };
-  });
-
-  return chooseWeighted(candidates);
+  return Note.fromPitchId(tonicId, octave);
 }
 
 function chooseInitialOctave(macros: MacroControls): number {
@@ -1989,6 +2163,9 @@ function chooseInitialBpm(macros: MacroControls): number {
   // Snap to a nice musical range
   return Math.round(clamp(raw, 50, 170));
 }
+
+export const choosePlaybackVelocity = () =>
+  clamp(Dist.normal(0.72, 0.08), 0.55, 0.92);
 
 export function createInitialSeed(
   partialMacros?: Partial<MacroControls>,
@@ -2018,16 +2195,18 @@ export class MarkovChain {
   readonly tickBeats: number;
   style: GeneratorStyle;
   macros: MacroControls;
+  readonly bpm: number;
 
   private state: GeneratorState;
 
   constructor(options: GeneratorOptions) {
     this.tickBeats = options.tickBeats ?? 0.25;
+    this.bpm = options.bpm ?? 90;
     this.macros = {
       ...DefaultMacros,
       ...(options.macros ?? {}),
     };
-    this.style = mapMacroToStyle(this.macros);
+    this.style = mapMacroToStyle(this.macros, this.bpm);
 
     const initialChord = options.initialChord ?? null;
 
@@ -2058,7 +2237,7 @@ export class MarkovChain {
       ...partial,
     };
 
-    this.style = mapMacroToStyle(this.macros);
+    this.style = mapMacroToStyle(this.macros, this.bpm);
   }
 
   reset(options: GeneratorOptions) {
@@ -2069,7 +2248,7 @@ export class MarkovChain {
       ...(options.macros ?? {}),
     };
 
-    this.style = mapMacroToStyle(this.macros);
+    this.style = mapMacroToStyle(this.macros, this.bpm);
 
     this.state = {
       scale: options.initialScale,
@@ -2095,7 +2274,24 @@ export class MarkovChain {
     if (candidates.length === 0) {
       return min;
     }
-    return weightedSample(candidates);
+
+    const maxValue = Math.max(...candidates.map((c) => c.value));
+    const shortBias =
+      clamp((this.bpm - 84) / 88, 0, 1) * 1.8 +
+      this.macros.density * 0.7 +
+      this.macros.energy * 0.45;
+
+    return weightedSample(
+      candidates.map((candidate) => {
+        const shortness =
+          1 - (candidate.value - min) / Math.max(0.0001, maxValue - min || 1);
+
+        return {
+          value: candidate.value,
+          weight: candidate.weight * Math.exp(shortness * shortBias),
+        };
+      }),
+    );
   }
 
   private scaleCandidates(current: GeneratorState): Scale[] {
@@ -2155,10 +2351,7 @@ export class MarkovChain {
     scale: Scale,
     current: GeneratorState,
   ): (Chord | null)[] {
-    const triads = buildScaleTriads(
-      scale,
-      current.currentNote.octave ?? scale.base.octave ?? 4,
-    );
+    const triads = harmonicRegisterPool(scale, current.currentNote);
     const harmonicPool = maybeAddSevenths(scale, triads);
 
     const candidates: (Chord | null)[] = [];
@@ -2211,7 +2404,10 @@ export class MarkovChain {
     const root = candidate.root();
     if (root) {
       const dist = absDistance(root, current.currentNote);
-      score += this.style.chordRootNearMelodyBias - 0.2 * dist;
+      score +=
+        dist >= 5 && dist <= 19
+          ? this.style.chordRootNearMelodyBias + 1.25
+          : this.style.chordRootNearMelodyBias - 0.08 * Math.abs(dist - 11);
     }
 
     const containedCount = notes.filter((n) => scale.contains(n)).length;
@@ -2629,10 +2825,15 @@ export class MarkovChain {
       list: PlayableEvent[],
       next: PlayableEvent,
       same: (a: PlayableEvent, b: PlayableEvent) => boolean,
+      maxDurationBeats = Number.POSITIVE_INFINITY,
     ) => {
       const prev = list[list.length - 1];
 
-      if (prev && same(prev, next)) {
+      if (
+        prev &&
+        same(prev, next) &&
+        (prev.endTick - prev.startTick + 1) * this.tickBeats < maxDurationBeats
+      ) {
         prev.endTick = next.endTick;
         finalizeEventDurations(prev);
         return;
@@ -2701,10 +2902,14 @@ export class MarkovChain {
         notes,
         noteEvent,
         (a, b) => !!a.note && !!b.note && noteEq(a.note, b.note),
+        0.5,
       );
 
-      pushOrExtend(chords, chordEvent, (a, b) =>
-        chordEq(a.chord ?? null, b.chord ?? null),
+      pushOrExtend(
+        chords,
+        chordEvent,
+        (a, b) => chordEq(a.chord ?? null, b.chord ?? null),
+        1,
       );
 
       pushOrExtend(
@@ -2715,7 +2920,13 @@ export class MarkovChain {
     }
 
     const totalTicks = frames.length;
-    const drums = buildRepeatedDrumPattern(totalTicks, this.tickBeats, bpm);
+    const firstTick = frames[0]?.tick ?? 0;
+    const drums = buildRepeatedDrumPattern(
+      totalTicks,
+      this.tickBeats,
+      bpm,
+      firstTick,
+    );
 
     const events = [...notes, ...chords, ...scales].sort((a, b) => {
       if (a.startTick !== b.startTick) return a.startTick - b.startTick;
@@ -2737,6 +2948,7 @@ export class MarkovChain {
       bpm,
       tickBeats: this.tickBeats,
       secondsPerBeat,
+      sourceHue: clamp01(this.macros.hue ?? DefaultMacros.hue),
 
       totalTicks,
       totalBeats,
@@ -2852,7 +3064,6 @@ export class MarkovChain {
 export class Generator {
   private _history: PlayableSequence[] = [];
   private _sim: MarkovChain;
-  private _totalBeats = 0;
   bpm: number;
 
   constructor(
@@ -2867,6 +3078,7 @@ export class Generator {
       initialNote: seed.note,
       initialScale: seed.scale,
       macros,
+      bpm: this.bpm,
     });
   }
 
@@ -2876,9 +3088,9 @@ export class Generator {
       initialNote: seed.note,
       initialScale: seed.scale,
       macros: this.macros,
+      bpm: this.bpm,
     });
     this._history = [];
-    this._totalBeats = 0;
   }
 
   toFullSequence(): PlayableSequence {
@@ -2887,6 +3099,7 @@ export class Generator {
         bpm: this.bpm,
         tickBeats: this._sim.tickBeats,
         secondsPerBeat: 60 / this.bpm,
+        sourceHue: clamp01(this.macros.hue ?? DefaultMacros.hue),
         totalTicks: 0,
         totalBeats: 0,
         totalSeconds: 0,
@@ -2915,6 +3128,8 @@ export class Generator {
       bpm: this.bpm,
       tickBeats: this._sim.tickBeats,
       secondsPerBeat: 60 / this.bpm,
+      sourceHue:
+        this._history[0]?.sourceHue ?? clamp01(this.macros.hue ?? DefaultMacros.hue),
       totalTicks,
       totalBeats,
       totalSeconds,
@@ -2931,10 +3146,13 @@ export class Generator {
     macros: Partial<MacroControls>,
     bpm: number = 90,
   ) {
-    const scaled = seconds / 10;
+    const targetBeats = Math.max(4, (seconds * bpm) / 60);
     const gen = new Generator(macros, bpm);
-    for (let i = 0; i < scaled; i += 1) {
-      gen.read(4);
+
+    while (gen.toFullSequence().totalBeats < targetBeats) {
+      const remainingBeats = targetBeats - gen.toFullSequence().totalBeats;
+      const remainingMeasures = Math.max(1, Math.ceil(remainingBeats / 4));
+      gen.read(Math.min(4, remainingMeasures));
     }
 
     const seq = gen.toFullSequence();
@@ -2952,13 +3170,6 @@ export class Generator {
     const seq = this._sim.toPlayableSequence(measures, {
       bpm: this.bpm,
     });
-
-    seq.events.forEach((e) => {
-      e.startBeat += this._totalBeats;
-      e.startSeconds += this._totalBeats * (60 / this.bpm);
-    });
-
-    this._totalBeats += seq.totalBeats;
 
     this._history.push(seq);
     return seq;
@@ -3016,10 +3227,13 @@ type ToneBridgeInstrumentConfig = {
     | Tone.MonoSynth
     | Tone.FMSynth
     | Tone.AMSynth
+    | Tone.PluckSynth
+    | Tone.PolySynth
     | Tone.Sampler;
   chordSynth?: Tone.PolySynth | Tone.Sampler;
   kickSynth?: Tone.MembraneSynth;
   snareSynth?: Tone.NoiseSynth;
+  hatSynth?: Tone.NoiseSynth | Tone.MetalSynth;
   noteVolumeDb?: number;
   chordVolumeDb?: number;
   drumVolumeDb?: number;
@@ -3177,8 +3391,8 @@ const sequenceToToneEvents = (
     .filter((event) => !!event.note)
     .map((event) => ({
       type: "note" as const,
-      time: event.startBeat,
-      duration: event.durationBeats,
+      time: event.startSeconds,
+      duration: event.durationSeconds,
       pitch: noteToTone(event.note!),
       velocity: sampleVelocity(),
       source: event,
@@ -3188,8 +3402,8 @@ const sequenceToToneEvents = (
     .filter((event) => !!event.chord)
     .map((event) => ({
       type: "chord" as const,
-      time: event.startBeat,
-      duration: event.durationBeats,
+      time: event.startSeconds,
+      duration: event.durationSeconds,
       pitches: chordToToneNotes(event.chord!),
       velocity: sampleVelocity(),
       source: event,
@@ -3199,8 +3413,8 @@ const sequenceToToneEvents = (
     .filter((event) => !!event.drum)
     .map((event) => ({
       type: "drum" as const,
-      time: event.startBeat,
-      duration: event.durationBeats,
+      time: event.startSeconds,
+      duration: event.durationSeconds,
       voice: event.drum!,
       velocity: clamp(event.velocity ?? sampleVelocity(0.72), 0.05, 1),
       source: event,
@@ -3230,7 +3444,10 @@ export const renderPlayableSequenceToWavBlob = async (
   for (const event of seq.notes) {
     if (!event.note) continue;
 
-    const startSample = Math.max(0, Math.floor(event.startSeconds * sampleRate));
+    const startSample = Math.max(
+      0,
+      Math.floor(event.startSeconds * sampleRate),
+    );
     const length = Math.max(1, Math.floor(event.durationSeconds * sampleRate));
     const endSample = Math.min(totalSamples, startSample + length);
     const attackSamples = Math.floor(sampleRate * 0.05);
@@ -3247,8 +3464,7 @@ export const renderPlayableSequenceToWavBlob = async (
         attackSamples,
         releaseSamples,
       );
-      const vibrato =
-        1 + 0.0025 * sampleSine((localIndex / sampleRate) * 0.18);
+      const vibrato = 1 + 0.0025 * sampleSine((localIndex / sampleRate) * 0.18);
       const voice =
         sampleSine(phase) * 0.76 +
         sampleTriangle(phase * 0.5) * 0.18 +
@@ -3265,14 +3481,19 @@ export const renderPlayableSequenceToWavBlob = async (
     const chordNotes = event.chord.notes();
     if (chordNotes.length === 0) continue;
 
-    const startSample = Math.max(0, Math.floor(event.startSeconds * sampleRate));
+    const startSample = Math.max(
+      0,
+      Math.floor(event.startSeconds * sampleRate),
+    );
     const length = Math.max(1, Math.floor(event.durationSeconds * sampleRate));
     const endSample = Math.min(totalSamples, startSample + length);
     const attackSamples = Math.floor(sampleRate * 0.18);
     const releaseSamples = Math.floor(sampleRate * 1.6);
     const amplitude = sampleVelocity() * (0.05 / chordNotes.length);
     const phases = chordNotes.map(() => 0);
-    const phaseSteps = chordNotes.map((note) => noteToFrequency(note) / sampleRate);
+    const phaseSteps = chordNotes.map(
+      (note) => noteToFrequency(note) / sampleRate,
+    );
 
     for (let i = startSample; i < endSample; i += 1) {
       const localIndex = i - startSample;
@@ -3301,7 +3522,10 @@ export const renderPlayableSequenceToWavBlob = async (
   for (const event of seq.drums) {
     if (!event.drum) continue;
 
-    const startSample = Math.max(0, Math.floor(event.startSeconds * sampleRate));
+    const startSample = Math.max(
+      0,
+      Math.floor(event.startSeconds * sampleRate),
+    );
     const length = Math.max(
       1,
       Math.floor(Math.max(event.durationSeconds, 0.08) * sampleRate),
@@ -3318,7 +3542,25 @@ export const renderPlayableSequenceToWavBlob = async (
         const env = Math.exp(-t * 14) * velocity * 0.42;
         const frequency = 92 * Math.exp(-t * 10) + 38;
         phase += frequency / sampleRate;
-        output[i] += (sampleSine(phase) * 0.85 + sampleSine(phase * 0.5) * 0.15) * env;
+        output[i] +=
+          (sampleSine(phase) * 0.85 + sampleSine(phase * 0.5) * 0.15) * env;
+      }
+
+      continue;
+    }
+
+    if (event.drum === "hat") {
+      for (let i = startSample; i < endSample; i += 1) {
+        const localIndex = i - startSample;
+        const t = localIndex / sampleRate;
+        const env = Math.exp(-t * 42) * velocity * 0.09;
+        const noise =
+          hashUnit((i + 1) * 31.337 + event.startSeconds * 151.7) * 2 - 1;
+        output[i] +=
+          (noise * 0.72 +
+            sampleSine(t * 4800) * 0.08 +
+            sampleSine(t * 8200) * 0.04) *
+          env;
       }
 
       continue;
@@ -3393,154 +3635,209 @@ bridge.dispose();
 const buildLofiPianoLead = (
   output: Tone.Volume,
 ): LofiInstrument<Tone.PolySynth> => {
-  const synth = new Tone.PolySynth(Tone.AMSynth, {
-    harmonicity: 1.25,
+  const synth = new Tone.PolySynth(Tone.Synth, {
     oscillator: {
-      type: "sine",
-    },
-    modulation: {
-      type: "triangle",
+      type: "fatsawtooth",
+      count: 3,
+      spread: 16,
     },
     envelope: {
-      attack: 0.08,
-      decay: 1.6,
-      sustain: 0.52,
-      release: 4.8,
+      attack: 0.004,
+      decay: 0.14,
+      sustain: 0.18,
+      release: 0.2,
     },
-    modulationEnvelope: {
-      attack: 0.14,
-      decay: 0.8,
-      sustain: 0.35,
-      release: 2.4,
-    },
-    volume: -10,
+    volume: -4,
   });
 
   const hp = new Tone.Filter({
     type: "highpass",
-    frequency: 45,
+    frequency: 120,
     rolloff: -12,
   });
   const tone = new Tone.Filter({
     type: "lowpass",
     frequency: 4200,
     rolloff: -24,
-    Q: 0.25,
+    Q: 0.42,
   });
   const bloom = new Tone.Filter({
     type: "peaking",
-    frequency: 540,
-    gain: 1.8,
-    Q: 0.7,
+    frequency: 1450,
+    gain: 3.2,
+    Q: 0.9,
+  });
+  const air = new Tone.Filter({
+    type: "peaking",
+    frequency: 3200,
+    gain: 1.4,
+    Q: 0.8,
   });
   const wobble = new Tone.Chorus({
-    frequency: 0.07,
-    delayTime: 6.2,
-    depth: 0.22,
-    spread: 120,
-    wet: 0.2,
+    frequency: 0.22,
+    delayTime: 2.2,
+    depth: 0.06,
+    spread: 100,
+    wet: 0.07,
   }).start();
+  const transient = new Tone.AutoFilter({
+    frequency: "16n",
+    depth: 0.12,
+    baseFrequency: 650,
+    octaves: 1.2,
+    wet: 0.04,
+  });
+  transient.start();
+  const slap = new Tone.PingPongDelay({
+    delayTime: "16n",
+    feedback: 0.08,
+    wet: 0.025,
+  });
   const tape = new Tone.FeedbackDelay({
-    delayTime: "8n.",
-    feedback: 0.24,
-    wet: 0.14,
+    delayTime: "8n",
+    feedback: 0.08,
+    wet: 0.02,
   });
   const room = new Tone.Reverb({
-    decay: 9.5,
-    preDelay: 0.04,
-    wet: 0.3,
+    decay: 0.8,
+    preDelay: 0.008,
+    wet: 0.025,
+  });
+  const drive = new Tone.Distortion({
+    distortion: 0.06,
+    wet: 0.08,
   });
   const compressor = new Tone.Compressor({
-    threshold: -24,
-    ratio: 2,
-    attack: 0.04,
-    release: 0.3,
+    threshold: -20,
+    ratio: 3.4,
+    attack: 0.004,
+    release: 0.09,
   });
 
-  synth.chain(hp, tone, bloom, wobble, tape, room, compressor, output);
+  synth.chain(
+    hp,
+    tone,
+    bloom,
+    air,
+    wobble,
+    transient,
+    slap,
+    tape,
+    room,
+    drive,
+    compressor,
+    output,
+  );
 
   return {
     synth,
-    effects: [hp, tone, bloom, wobble, tape, room, compressor],
+    effects: [
+      hp,
+      tone,
+      bloom,
+      air,
+      wobble,
+      transient,
+      slap,
+      tape,
+      room,
+      drive,
+      compressor,
+    ],
   };
 };
 
 const buildLofiPianoChords = (
   output: Tone.Volume,
 ): LofiInstrument<Tone.PolySynth> => {
-  const synth = new Tone.PolySynth(Tone.AMSynth, {
-    harmonicity: 0.5,
+  const synth = new Tone.PolySynth(Tone.MonoSynth, {
     oscillator: {
-      type: "sine",
+      type: "fatsquare",
+      count: 3,
+      spread: 18,
     },
-    modulation: {
-      type: "sine",
+    filter: {
+      Q: 1.1,
+      type: "lowpass",
+      rolloff: -24,
     },
     envelope: {
-      attack: 0.45,
-      decay: 4.8,
-      sustain: 0.82,
-      release: 10.5,
+      attack: 0.06,
+      decay: 0.55,
+      sustain: 0.62,
+      release: 1.3,
     },
-    modulationEnvelope: {
-      attack: 0.2,
-      decay: 2.4,
-      sustain: 0.6,
-      release: 6,
+    filterEnvelope: {
+      attack: 0.01,
+      decay: 0.8,
+      sustain: 0.26,
+      release: 1.2,
+      baseFrequency: 160,
+      octaves: 3.2,
+      exponent: 2.2,
     },
-    volume: -20,
+    volume: -9,
   });
 
   const hp = new Tone.Filter({
     type: "highpass",
-    frequency: 20,
+    frequency: 60,
     rolloff: -12,
   });
   const tone = new Tone.Filter({
     type: "lowpass",
-    frequency: 1500,
+    frequency: 2400,
     rolloff: -24,
-    Q: 0.2,
+    Q: 0.55,
   });
   const warmth = new Tone.Filter({
     type: "peaking",
-    frequency: 240,
-    gain: 3.4,
-    Q: 0.55,
+    frequency: 260,
+    gain: 2.8,
+    Q: 0.85,
   });
   const haze = new Tone.Filter({
     type: "peaking",
-    frequency: 980,
-    gain: -3,
-    Q: 0.7,
+    frequency: 1500,
+    gain: 1.6,
+    Q: 0.75,
   });
   const wobble = new Tone.Chorus({
-    frequency: 0.025,
-    delayTime: 12,
-    depth: 0.3,
+    frequency: 0.5,
+    delayTime: 9,
+    depth: 0.28,
     spread: 180,
-    wet: 0.38,
+    wet: 0.24,
   }).start();
-  const shimmer = new Tone.PingPongDelay({
-    delayTime: "2n",
+  const vibrato = new Tone.Vibrato({
+    frequency: 4.1,
+    depth: 0.016,
+    wet: 0.03,
+  });
+  const stereo = new Tone.PingPongDelay({
+    delayTime: "4n",
     feedback: 0.22,
-    wet: 0.16,
+    wet: 0.1,
   });
   const tape = new Tone.FeedbackDelay({
-    delayTime: "1m",
-    feedback: 0.34,
-    wet: 0.22,
+    delayTime: "2n.",
+    feedback: 0.16,
+    wet: 0.06,
   });
   const room = new Tone.Reverb({
-    decay: 18,
-    preDelay: 0.08,
-    wet: 0.62,
+    decay: 2.7,
+    preDelay: 0.025,
+    wet: 0.12,
+  });
+  const drive = new Tone.Distortion({
+    distortion: 0.1,
+    wet: 0.12,
   });
   const compressor = new Tone.Compressor({
-    threshold: -30,
-    ratio: 1.6,
-    attack: 0.08,
-    release: 0.8,
+    threshold: -22,
+    ratio: 2.2,
+    attack: 0.03,
+    release: 0.28,
   });
 
   synth.chain(
@@ -3549,16 +3846,30 @@ const buildLofiPianoChords = (
     warmth,
     haze,
     wobble,
-    shimmer,
+    vibrato,
+    stereo,
     tape,
     room,
+    drive,
     compressor,
     output,
   );
 
   return {
     synth,
-    effects: [hp, tone, warmth, haze, wobble, shimmer, tape, room, compressor],
+    effects: [
+      hp,
+      tone,
+      warmth,
+      haze,
+      wobble,
+      vibrato,
+      stereo,
+      tape,
+      room,
+      drive,
+      compressor,
+    ],
   };
 };
 
@@ -3574,11 +3885,13 @@ export class ToneBridge {
     | Tone.MonoSynth
     | Tone.FMSynth
     | Tone.AMSynth
+    | Tone.PluckSynth
     | Tone.Sampler
     | Tone.PolySynth;
   private chordSynth: Tone.PolySynth | Tone.Sampler;
   private kickSynth: Tone.MembraneSynth;
   private snareSynth: Tone.NoiseSynth;
+  private hatSynth: Tone.NoiseSynth | Tone.MetalSynth;
 
   private scheduledIds: ToneScheduledIds = {
     all: [],
@@ -3591,10 +3904,10 @@ export class ToneBridge {
 
   constructor(config: ToneBridgeInstrumentConfig = {}) {
     this.noteOutput = new Tone.Volume(
-      config.noteVolumeDb ?? -5,
+      config.noteVolumeDb ?? -4,
     ).toDestination();
     this.chordOutput = new Tone.Volume(
-      config.chordVolumeDb ?? -14,
+      config.chordVolumeDb ?? -6,
     ).toDestination();
     this.drumOutput = new Tone.Volume(
       config.drumVolumeDb ?? -12,
@@ -3652,6 +3965,21 @@ export class ToneBridge {
           release: 0.08,
         },
       }).connect(this.drumOutput);
+
+    this.hatSynth =
+      config.hatSynth ??
+      new Tone.NoiseSynth({
+        noise: {
+          type: "white",
+          playbackRate: 1.6,
+        },
+        envelope: {
+          attack: 0.001,
+          decay: 0.035,
+          sustain: 0,
+          release: 0.02,
+        },
+      }).connect(this.drumOutput);
   }
 
   async init(): Promise<void> {
@@ -3702,6 +4030,7 @@ export class ToneBridge {
     const chordSynth = instruments.chordSynth ?? this.chordSynth;
     const kickSynth = instruments.kickSynth ?? this.kickSynth;
     const snareSynth = instruments.snareSynth ?? this.snareSynth;
+    const hatSynth = instruments.hatSynth ?? this.hatSynth;
 
     if (typeof instruments.noteVolumeDb === "number") {
       this.noteOutput.volume.value = instruments.noteVolumeDb;
@@ -3722,42 +4051,45 @@ export class ToneBridge {
     const toneSeq = this.toToneSequence(seq, velocitySampler);
 
     for (const ev of toneSeq.notes) {
+      const duration = beatsToTransportTime(ev.source.durationBeats);
       const id = Tone.getTransport().scheduleOnce((time) => {
-        noteSynth.triggerAttackRelease(
-          ev.pitch,
-          ev.duration,
-          time,
-          ev.velocity,
-        );
-      }, ev.time);
+        noteSynth.triggerAttackRelease(ev.pitch, duration, time, ev.velocity);
+      }, beatsToTransportTime(ev.source.startBeat));
 
       this.scheduledIds.notes.push(id);
       this.scheduledIds.all.push(id);
     }
 
     for (const ev of toneSeq.chords) {
+      const duration = beatsToTransportTime(ev.source.durationBeats);
       const id = Tone.getTransport().scheduleOnce((time) => {
         chordSynth.triggerAttackRelease(
           ev.pitches,
-          ev.duration,
+          duration,
           time,
           ev.velocity,
         );
-      }, ev.time);
+      }, beatsToTransportTime(ev.source.startBeat));
 
       this.scheduledIds.chords.push(id);
       this.scheduledIds.all.push(id);
     }
 
     for (const ev of toneSeq.drums) {
+      const duration = beatsToTransportTime(ev.source.durationBeats);
       const id = Tone.getTransport().scheduleOnce((time) => {
         if (ev.voice === "kick") {
-          kickSynth.triggerAttackRelease("C1", ev.duration, time, ev.velocity);
+          kickSynth.triggerAttackRelease("C1", duration, time, ev.velocity);
           return;
         }
 
-        snareSynth.triggerAttackRelease(ev.duration, time, ev.velocity);
-      }, ev.time);
+        if (ev.voice === "hat") {
+          hatSynth.triggerAttackRelease(duration, time, ev.velocity);
+          return;
+        }
+
+        snareSynth.triggerAttackRelease(duration, time, ev.velocity);
+      }, beatsToTransportTime(ev.source.startBeat));
 
       this.scheduledIds.drums.push(id);
       this.scheduledIds.all.push(id);
@@ -3861,6 +4193,7 @@ export class ToneBridge {
     }
     this.kickSynth.dispose();
     this.snareSynth.dispose();
+    this.hatSynth.dispose();
     this.noteOutput.dispose();
     this.chordOutput.dispose();
     this.drumOutput.dispose();
@@ -3880,6 +4213,12 @@ const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 const normalize = (value: number, min: number, max: number) => {
   if (max <= min) return 0;
   return clamp01((value - min) / (max - min));
+};
+
+const accentuate01 = (value: number, curve = 0.7) => {
+  const centered = clamp01(value) - 0.5;
+  const magnitude = Math.pow(Math.abs(centered) * 2, curve) / 2;
+  return clamp01(0.5 + Math.sign(centered) * magnitude);
 };
 
 /**
@@ -4049,21 +4388,22 @@ export const imageStatsToMacros = (stats: ImageStats): MacroControls => {
 
   // ENERGY
   // Mostly direct from image energy, with a slight boost from saturation.
-  const macroEnergy = clamp01(0.8 * energy01 + 0.2 * saturation01);
+  const macroEnergy = accentuate01(0.8 * energy01 + 0.2 * saturation01, 0.62);
 
   // BRIGHTNESS
   // Not just raw hue — image "brightness feeling" is a combo of
   // hue family, saturation, and dominant color character.
-  const brightness = clamp01(
+  const brightness = accentuate01(
     0.45 * hueBrightness +
       0.25 * dominant.brightness +
       0.2 * saturation01 +
       0.1 * energy01,
+    0.72,
   );
 
   // WARMTH
   // Mostly direct warmth, plus dominant color correction.
-  const warmth = clamp01(0.75 * warmth01 + 0.25 * dominant.warmth);
+  const warmth = accentuate01(0.72 * warmth01 + 0.28 * dominant.warmth, 0.68);
 
   // ENTROPY
   // infer from:
@@ -4072,8 +4412,9 @@ export const imageStatsToMacros = (stats: ImageStats): MacroControls => {
   // - disagreement between warmth and brightness
   const contrastDisagreement = Math.abs(warmth - brightness);
 
-  const entropy = clamp01(
+  const entropy = accentuate01(
     0.5 * energy01 + 0.2 * saturation01 + 0.3 * contrastDisagreement,
+    0.7,
   );
 
   // TENSION
@@ -4082,17 +4423,18 @@ export const imageStatsToMacros = (stats: ImageStats): MacroControls => {
   // - higher energy
   // - higher saturation
   // - lower warmth can sometimes feel colder / more tense
-  const tension = clamp01(
+  const tension = accentuate01(
     0.35 * dominant.tension +
       0.25 * energy01 +
       0.2 * saturation01 +
       0.2 * (1 - warmth),
+    0.74,
   );
 
   // DENSITY
   // Visual fullness/activity.
   // Strongly tied to energy, but saturation helps it feel more "busy."
-  const density = clamp01(0.7 * energy01 + 0.3 * saturation01);
+  const density = accentuate01(0.68 * energy01 + 0.32 * saturation01, 0.66);
 
   return {
     energy: macroEnergy,
@@ -4101,6 +4443,7 @@ export const imageStatsToMacros = (stats: ImageStats): MacroControls => {
     entropy,
     tension,
     density,
+    hue: hue01,
   };
 };
 
@@ -4183,6 +4526,7 @@ const describePlaybackSequenceColor = (
   sequence: PlayableSequence,
 ): {
   hue: number;
+  sourceHue: number;
   saturation: number;
   lightness: number;
   warmth: number;
@@ -4255,8 +4599,7 @@ const describePlaybackSequenceColor = (
     let intervalSignature = 0;
 
     for (let j = 1; j < chordNotes.length; j += 1) {
-      intervalSignature +=
-        mod12(chordNotes[j].id - chordNotes[0].id) * (j + 1);
+      intervalSignature += mod12(chordNotes[j].id - chordNotes[0].id) * (j + 1);
     }
 
     paletteSeed +=
@@ -4332,9 +4675,7 @@ const describePlaybackSequenceColor = (
   }
 
   const paletteShift = hashUnit(
-    paletteSeed * 0.97 +
-      dominantPitchClass * 1.73 +
-      secondaryPitchClass * 2.31,
+    paletteSeed * 0.97 + dominantPitchClass * 1.73 + secondaryPitchClass * 2.31,
   );
   const paletteSpread = hashUnit(
     paletteSeed * 1.37 + range01 * 11 + motion01 * 7,
@@ -4342,14 +4683,16 @@ const describePlaybackSequenceColor = (
   const paletteContrast = hashUnit(
     paletteSeed * 1.91 + density * 13 + entropy * 17,
   );
+  const sourceHue = clamp01(sequence.sourceHue ?? 0.5);
 
   const hue =
-    (dominantPitchClass / 12 * 0.32 +
-      secondaryPitchClass / 12 * 0.18 +
-      avgPitchClass / 12 * 0.15 +
-      paletteShift * 0.27 +
-      tension * 0.05 +
-      bpm01 * 0.03) %
+    (sourceHue * 0.44 +
+      (dominantPitchClass / 12) * 0.22 +
+      (secondaryPitchClass / 12) * 0.1 +
+      (avgPitchClass / 12) * 0.08 +
+      paletteShift * 0.12 +
+      tension * 0.03 +
+      bpm01 * 0.01) %
     1;
   const saturation = clamp01(
     0.18 +
@@ -4368,6 +4711,7 @@ const describePlaybackSequenceColor = (
 
   return {
     hue,
+    sourceHue,
     saturation,
     lightness,
     warmth,
@@ -4519,7 +4863,7 @@ export const playbackSequencesToPixelColors = (
       }
     }
 
-    const averagePitchClass = (pitchClassSum / chordNotes.length) / 12;
+    const averagePitchClass = pitchClassSum / chordNotes.length / 12;
     const rootHue = chordNotes[0].id / 12;
     const chordSeed = hashUnit(
       intervalSignature * 0.37 +
@@ -4529,11 +4873,13 @@ export const playbackSequencesToPixelColors = (
     );
 
     return (
-      rootHue * 0.38 +
-      averagePitchClass * 0.22 +
-      chordSeed * 0.28 +
-      profile.paletteShift * 0.12
-    ) % 1;
+      (profile.sourceHue * 0.4 +
+        rootHue * 0.26 +
+        averagePitchClass * 0.12 +
+        chordSeed * 0.16 +
+        profile.paletteShift * 0.06) %
+      1
+    );
   };
 
   const totalBeats = sequence.totalBeats;
@@ -4567,10 +4913,7 @@ export const playbackSequencesToPixelColors = (
     const beat = ((pixelIndex + 0.5) / pixelCount) * totalBeats;
     const progress = pixelIndex / lastPixelIndex;
 
-    while (
-      noteIndex < notes.length &&
-      eventEndBeat(notes[noteIndex]) <= beat
-    ) {
+    while (noteIndex < notes.length && eventEndBeat(notes[noteIndex]) <= beat) {
       noteIndex += 1;
     }
 
@@ -4588,10 +4931,7 @@ export const playbackSequencesToPixelColors = (
       scaleIndex += 1;
     }
 
-    while (
-      drumIndex < drums.length &&
-      eventEndBeat(drums[drumIndex]) <= beat
-    ) {
+    while (drumIndex < drums.length && eventEndBeat(drums[drumIndex]) <= beat) {
       drumIndex += 1;
     }
 
@@ -4618,11 +4958,14 @@ export const playbackSequencesToPixelColors = (
       if (activeNoteEvent?.note) {
         const notePitch01 = normalize(activeNoteEvent.note.keyed(), 24, 96);
         noteHue =
-          (activeNoteEvent.note.id / 12 * 0.54 +
-            notePitch01 * 0.16 +
-            profile.paletteShift * 0.3) %
+          (profile.sourceHue * 0.48 +
+            (activeNoteEvent.note.id / 12) * 0.26 +
+            notePitch01 * 0.1 +
+            profile.paletteShift * 0.08) %
           1;
-        noteLightness = clamp01(normalize(activeNoteEvent.note.keyed(), 24, 84));
+        noteLightness = clamp01(
+          normalize(activeNoteEvent.note.keyed(), 24, 84),
+        );
         noteEnergy = clamp01(
           1 - normalize(activeNoteEvent.durationBeats, 0.25, 4),
         );
@@ -4646,8 +4989,7 @@ export const playbackSequencesToPixelColors = (
         let structureSignature = 0;
 
         for (let i = 0; i < activeScaleEvent.scale.structure.length; i += 1) {
-          structureSignature +=
-            activeScaleEvent.scale.structure[i] * (i + 1);
+          structureSignature += activeScaleEvent.scale.structure[i] * (i + 1);
         }
 
         const scaleSeed = hashUnit(
@@ -4657,9 +4999,10 @@ export const playbackSequencesToPixelColors = (
         );
 
         scaleHue =
-          (activeScaleEvent.scale.base.id / 12 * 0.35 +
-            scaleSeed * 0.45 +
-            profile.paletteShift * 0.2) %
+          (profile.sourceHue * 0.42 +
+            (activeScaleEvent.scale.base.id / 12) * 0.24 +
+            scaleSeed * 0.22 +
+            profile.paletteShift * 0.08) %
           1;
       } else {
         scaleHue = profile.hue;
@@ -4674,12 +5017,13 @@ export const playbackSequencesToPixelColors = (
     }
 
     const hue =
-      (profile.hue * 0.14 +
-        noteHue * 0.34 +
-        chordHue * 0.2 +
-        scaleHue * 0.14 +
-        profile.paletteShift * 0.08 +
-        profile.paletteSpread * 0.06 +
+      (profile.sourceHue * 0.28 +
+        profile.hue * 0.1 +
+        noteHue * 0.26 +
+        chordHue * 0.17 +
+        scaleHue * 0.11 +
+        profile.paletteShift * 0.04 +
+        profile.paletteSpread * 0.02 +
         progress * 0.03 +
         drumAccent * 0.01) %
       1;

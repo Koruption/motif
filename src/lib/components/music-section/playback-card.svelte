@@ -6,7 +6,7 @@
   import Download from "@tabler/icons-svelte/icons/download";
   import {
     ToneBridge,
-    Dist,
+    choosePlaybackVelocity,
     renderPlayableSequenceToWavBlob,
   } from "$lib/utils/music-utils";
   import type { PlayableSequence } from "$lib/utils/music-utils";
@@ -99,8 +99,9 @@
     if (scheduledSequence !== $generationConfigStore.sequence) {
       playbackElapsedSeconds = 0;
       playbackBaseElapsedSeconds = 0;
-      await toneBridge.play($generationConfigStore.sequence, () =>
-        Dist.normal(0.5, 0.2),
+      await toneBridge.play(
+        $generationConfigStore.sequence,
+        choosePlaybackVelocity,
       );
       scheduledSequence = $generationConfigStore.sequence;
     } else {
@@ -138,8 +139,9 @@
     isDownloading = true;
 
     try {
-      const blob = await renderPlayableSequenceToWavBlob(sequence, () =>
-        Dist.normal(0.5, 0.2),
+      const blob = await renderPlayableSequenceToWavBlob(
+        sequence,
+        choosePlaybackVelocity,
       );
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -203,7 +205,7 @@
 
 <section class="h-full w-full">
   <div
-    class="flex h-full w-full items-center gap-6 overflow-hidden rounded-3xl border border-black/10 text-neutral-950 shadow-[0_18px_60px_-32px_rgba(0,0,0,0.45)]"
+    class="flex h-full w-full items-center gap-6 overflow-hidden rounded-3xl text-neutral-950"
   >
     <div class="relative flex size-40 shrink-0 items-center justify-center">
       <svg
@@ -232,7 +234,7 @@
         />
       </svg>
       <div
-        class={`flex size-36 items-center justify-center rounded-full border border-black/15 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.95)_0,_rgba(255,255,255,0.95)_10%,_rgba(20,20,20,0.92)_11%,_rgba(10,10,10,1)_58%,_rgba(45,45,45,1)_76%,_rgba(8,8,8,1)_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),0_14px_30px_-18px_rgba(0,0,0,0.8)] ${isPlaying ? "animate-[spin_5s_linear_infinite]" : ""}`}
+        class={`flex size-36 items-center justify-center rounded-full border border-black/15  ${isPlaying ? "animate-[spin_5s_linear_infinite]" : ""}`}
       >
         <div
           class="relative size-full overflow-hidden rounded-full border border-white/20 bg-neutral-300 shadow-inner"
@@ -254,7 +256,7 @@
         </div>
       </div>
       <div
-        class="pointer-events-none absolute size-4 rounded-full border border-white/10 bg-neutral-950 shadow-[0_0_0_4px_rgba(255,255,255,0.08)]"
+        class="pointer-events-none absolute size-4 rounded-full border border-white/10 bg-neutral-950"
       ></div>
     </div>
 
