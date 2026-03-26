@@ -1,8 +1,16 @@
 # Motif
 
-Motif is an image-to-music generation studio built with SvelteKit, TypeScript, Tailwind CSS, and Tone.js. It takes an uploaded image, analyzes its visual character, translates those findings into musical control data, generates a sequence, and presents the result as both sound and a newly painted visual artifact.
+> I found myself staring at a painting of my wife and wondering:
+> what does she sound like?
+>
+> Motif came from that question — translating visual form into sound, and back into visual.
+> It’s far from perfect, even further from finished, but nothing real ever starts without asking something strange.
+
+Motif is an image-to-music generation studio built with Svelte and Tone.js. It takes an uploaded image, analyzes its visual character, translates those findings into musical control data, generates a sequence, and presents the result as both sound and a newly painted visual artifact.
 
 The project is designed as a creative instrument rather than a one-click novelty. Users can inspect image-derived statistics, influence the generation process through configuration controls, preview the resulting composition, study the musical summary, and export both the generated image and generated audio.
+
+<img src="https://github.com/Koruption/motif/blob/main/primary_screen.png" />
 
 ## Overview
 
@@ -34,6 +42,8 @@ In practice, that means a single uploaded image can become:
 - WAV export for the generated audio
 
 ## How It Works
+
+<img src="https://raw.githubusercontent.com/Koruption/motif/refs/heads/main/generated_screen.png" />
 
 ### Image Analysis
 
@@ -100,91 +110,6 @@ The core experience is built around an iterative creative loop:
 
 That loop is intentionally quick. The project is meant to encourage experimentation, comparison, and repeated regeneration from the same source material.
 
-## Technology Stack
-
-- Svelte 5
-- SvelteKit
-- TypeScript
-- Tailwind CSS 4
-- Tone.js
-- Bits UI
-- LayerChart
-
-## Project Structure
-
-```text
-src/
-  lib/
-    components/   UI and feature components
-    stores/       application state
-    utils/        image analysis, sequence generation, playback, and export logic
-  routes/         SvelteKit route files
-static/           static assets
-```
-
-Important files:
-
-- `src/routes/+page.svelte` orchestrates the main application layout.
-- `src/lib/components/display-area/display-area.svelte` contains the main visual presentation area.
-- `src/lib/components/config-bar/config-bar.svelte` handles generation controls and sequence summary display.
-- `src/lib/components/image-view/image-view.svelte` manages source-image rendering, generated-canvas animation, and PNG export.
-- `src/lib/components/music-section/playback-card.svelte` contains playback and WAV export controls.
-- `src/lib/utils/image-utils.ts` contains the image analysis and color-processing helpers.
-- `src/lib/utils/music-utils.ts` contains the core music-generation, playback, rendering, and export logic.
-
-## Local Development
-
-### Requirements
-
-- Node.js 20 or newer is recommended
-- `pnpm` is the preferred package manager
-
-### Install
-
-```sh
-pnpm install
-```
-
-If you prefer npm:
-
-```sh
-npm install
-```
-
-### Run the App
-
-```sh
-pnpm dev
-```
-
-### Build
-
-```sh
-pnpm build
-```
-
-### Preview the Production Build
-
-```sh
-pnpm preview
-```
-
-### Type and Svelte Checks
-
-```sh
-pnpm check
-```
-
-### Available Scripts
-
-```sh
-pnpm dev
-pnpm build
-pnpm preview
-pnpm check
-pnpm check:watch
-```
-
 ## Architectural Notes
 
 - The project is intentionally organized around focused utility modules and Svelte components rather than a large application framework or backend service.
@@ -205,7 +130,7 @@ The visual side follows the same philosophy. The generated image is meant to fee
 
 ## Roadmap Ideas
 
-Potential areas for expansion include:
+Areas I'd like to expand on:
 
 - richer arrangement layers and instrument families
 - preset systems for generation styles
