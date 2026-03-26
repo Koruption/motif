@@ -10,6 +10,8 @@ Motif is an image-to-music generation studio built with Svelte and Tone.js. It t
 
 The project is designed as a creative instrument rather than a one-click novelty. Users can inspect image-derived statistics, influence the generation process through configuration controls, preview the resulting composition, study the musical summary, and export both the generated image and generated audio.
 
+Try the demo [here](motif-one.vercel.app) and feel free to send me your generations at juan.farias.ii@outlook.com.
+
 <img src="https://github.com/Koruption/motif/blob/main/primary_screen.png" />
 
 ## Overview
