@@ -1,8 +1,88 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import markdown from "$lib/content/how-it-works.md?raw";
   import { renderMarkdown } from "$lib/utils/markdown";
 
+  type MathJaxWindow = Window & {
+    MathJax?: {
+      tex?: {
+        inlineMath?: string[][];
+        displayMath?: string[][];
+      };
+      svg?: {
+        fontCache?: string;
+      };
+      startup?: {
+        promise?: Promise<unknown>;
+      };
+      typesetPromise?: (elements?: HTMLElement[]) => Promise<unknown>;
+    };
+  };
+
   const content = renderMarkdown(markdown);
+  let article: HTMLElement;
+
+  const ensureMathJax = async () => {
+    const mathWindow = window as MathJaxWindow;
+
+    if (mathWindow.MathJax?.typesetPromise) {
+      await mathWindow.MathJax.startup?.promise;
+      return;
+    }
+
+    mathWindow.MathJax = {
+      tex: {
+        inlineMath: [
+          ["$", "$"],
+          ["\\(", "\\)"],
+        ],
+        displayMath: [
+          ["$$", "$$"],
+          ["\\[", "\\]"],
+        ],
+      },
+      svg: {
+        fontCache: "global",
+      },
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      const existingScript = document.getElementById(
+        "motif-mathjax-script",
+      ) as HTMLScriptElement | null;
+
+      if (existingScript) {
+        existingScript.addEventListener("load", () => resolve(), { once: true });
+        existingScript.addEventListener(
+          "error",
+          () => reject(new Error("Unable to load MathJax.")),
+          { once: true },
+        );
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.id = "motif-mathjax-script";
+      script.src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Unable to load MathJax."));
+      document.head.appendChild(script);
+    });
+
+    await mathWindow.MathJax?.startup?.promise;
+  };
+
+  onMount(async () => {
+    const mathWindow = window as MathJaxWindow;
+
+    try {
+      await ensureMathJax();
+      await mathWindow.MathJax?.typesetPromise?.([article]);
+    } catch (error) {
+      console.error("Failed to typeset the How It Works page.", error);
+    }
+  });
 </script>
 
 <section class="h-full overflow-y-auto">
@@ -21,9 +101,45 @@
         </p>
       </div>
 
-      <article class="space-y-6" class:empty={!content}>
+      <article bind:this={article} class="markdown-content space-y-6">
         {@html content}
       </article>
     </div>
   </div>
 </section>
+
+<style>
+  :global(.markdown-content img) {
+    display: block;
+    width: 100%;
+    margin: 2rem 0;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    border-radius: 1rem;
+    box-shadow: 0 24px 80px -40px rgb(16 185 129 / 0.5);
+  }
+
+  :global(.markdown-content hr) {
+    border: 0;
+    border-top: 1px solid rgb(255 255 255 / 0.1);
+  }
+
+  :global(.markdown-content mjx-container[display="true"]) {
+    margin: 1.5rem 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  :global(.markdown-content .math-display) {
+    margin: 1.5rem 0;
+  }
+
+  :global(.markdown-content mjx-container:not([display="true"])) {
+    display: inline-block;
+    margin: 0 0.08em;
+    vertical-align: -0.08em;
+  }
+
+  :global(.markdown-content mjx-container) {
+    color: white;
+  }
+</style>

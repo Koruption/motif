@@ -59,7 +59,7 @@ We extend this into a non-stationary process: $$P(x_{{t+1}}\,|\,x_{t}, x_{t}, h_
 
 This turns the transition function into something that evolves. The system is no longer sampling from a static table, but from a distribution that shifts as the sequence unfolds.
 
-The second key idea is factorization. A musical “event” is not sampled as a single object. Instead, it is decomposed into components: $$xt​=(r_{t}​,p_{t}​,i_{t}​,ρ_{t}​,χ_{t})$$where:
+The second key idea is factorization. A musical “event” is not sampled as a single object. Instead, it is decomposed into components: $$x_{t}​=(r_{t}​,p_{t}​,i_{t}​,ρ_{t}​,χ_{t})$$where:
 - $r_t$​: rhythm
 - $p_{t}$​: pitch
 - $i_{t}$​: interval (movement relative to previous note)

@@ -6,12 +6,56 @@ const escapeHtml = (value: string) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
+const normalizeImageUrl = (value: string) => {
+  const githubBlobMatch = value.match(
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/,
+  );
+
+  if (!githubBlobMatch) {
+    return value;
+  }
+
+  const [, owner, repo, path] = githubBlobMatch;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${path}`;
+};
+
+const normalizeRawHtmlTag = (tag: string) =>
+  tag.replace(
+    /\ssrc=(["'])(.*?)\1/i,
+    (_, quote: string, url: string) =>
+      ` src=${quote}${normalizeImageUrl(url)}${quote}`,
+  );
+
+const buildImageTag = (alt: string, url: string) =>
+  `<img src="${escapeHtml(normalizeImageUrl(url))}" alt="${escapeHtml(alt)}" loading="lazy" />`;
+
 const applyInlineMarkdown = (value: string) => {
-  let output = escapeHtml(value);
+  const preservedTags: string[] = [];
+  const preservedMath: string[] = [];
+  const placeholderValue = value.replaceAll(/<[^>]+>/g, (tag) => {
+    const placeholder = `__RAW_HTML_${preservedTags.length}__`;
+    preservedTags.push(normalizeRawHtmlTag(tag));
+    return placeholder;
+  });
+  const mathPlaceholderValue = placeholderValue.replaceAll(
+    /\$\$[\s\S]+?\$\$|\$(?:\\.|[^$\n])+\$/g,
+    (math) => {
+      const placeholder = `__MATH_${preservedMath.length}__`;
+      preservedMath.push(math);
+      return placeholder;
+    },
+  );
+
+  let output = escapeHtml(mathPlaceholderValue);
 
   output = output.replaceAll(
+    /!\[([^\]]*)\]\(([^)\s]+)\)/g,
+    (_, alt: string, url: string) => buildImageTag(alt, url),
+  );
+  output = output.replaceAll(
     /\[([^\]]+)\]\(([^)\s]+)\)/g,
-    '<a href="$2" class="text-emerald-300 underline decoration-emerald-500/60 underline-offset-4 hover:text-emerald-200">$1</a>',
+    (_, label: string, url: string) =>
+      `<a href="${escapeHtml(url)}" class="text-emerald-300 underline decoration-emerald-500/60 underline-offset-4 hover:text-emerald-200">${label}</a>`,
   );
   output = output.replaceAll(
     /`([^`]+)`/g,
@@ -19,12 +63,21 @@ const applyInlineMarkdown = (value: string) => {
   );
   output = output.replaceAll(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   output = output.replaceAll(/\*([^*]+)\*/g, "<em>$1</em>");
+  output = output.replaceAll(/__MATH_(\d+)__/g, (_, index: string) => {
+    return preservedMath[Number(index)] ?? "";
+  });
+  output = output.replaceAll(/__RAW_HTML_(\d+)__/g, (_, index: string) => {
+    return preservedTags[Number(index)] ?? "";
+  });
 
   return output;
 };
 
 export const renderMarkdown = (markdown: string) => {
-  const lines = markdown.replaceAll("\r\n", "\n").split("\n");
+  const normalizedMarkdown = markdown
+    .replaceAll("\r\n", "\n")
+    .replaceAll(/\s*\$\$([\s\S]+?)\$\$\s*/g, "\n\n$$$1$$\n\n");
+  const lines = normalizedMarkdown.split("\n");
   const blocks: string[] = [];
 
   let index = 0;
@@ -34,6 +87,12 @@ export const renderMarkdown = (markdown: string) => {
     const trimmed = line.trim();
 
     if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      blocks.push('<hr class="my-10 border-white/10" />');
       index += 1;
       continue;
     }
@@ -55,6 +114,58 @@ export const renderMarkdown = (markdown: string) => {
       blocks.push(
         `<pre class="overflow-x-auto rounded-2xl border border-white/10 bg-black/40 p-4 text-sm leading-6 text-white"><code${language ? ` data-language="${escapeHtml(language)}"` : ""}>${escapeHtml(codeLines.join("\n"))}</code></pre>`,
       );
+      continue;
+    }
+
+    if (trimmed.startsWith("$$")) {
+      const mathLines: string[] = [];
+
+      if (trimmed !== "$$") {
+        const singleLineContent = trimmed.slice(2, -2).trim();
+
+        if (trimmed.endsWith("$$") && trimmed.length > 4) {
+          blocks.push(
+            `<div class="math-display">$$${singleLineContent}$$</div>`,
+          );
+          index += 1;
+          continue;
+        }
+
+        mathLines.push(trimmed.slice(2));
+      }
+
+      index += 1;
+
+      while (index < lines.length) {
+        const currentLine = lines[index];
+        const currentTrimmed = currentLine.trim();
+
+        if (currentTrimmed.endsWith("$$")) {
+          const closingLine = currentTrimmed.slice(0, -2).trim();
+
+          if (closingLine) {
+            mathLines.push(closingLine);
+          }
+
+          index += 1;
+          break;
+        }
+
+        mathLines.push(currentLine);
+        index += 1;
+      }
+
+      blocks.push(
+        `<div class="math-display">$$${mathLines.join("\n").trim()}$$</div>`,
+      );
+      continue;
+    }
+
+    if (/^<[^>]+>$/.test(trimmed)) {
+      blocks.push(
+        trimmed.replaceAll(/<img\b[^>]*>/gi, (tag) => normalizeRawHtmlTag(tag)),
+      );
+      index += 1;
       continue;
     }
 
