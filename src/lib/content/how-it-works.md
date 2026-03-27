@@ -88,6 +88,12 @@ The result is a process that does not simply generate notes, but produces sequen
 
 ## Process
 ---
+
+<div class="art-exhibit-wall">
+<img class="art-exhibit-piece" src="https://github.com/Koruption/motif/blob/main/pixelation-process.gif" alt="Pixelation Process" />
+<img class="art-exhibit-piece" src="https://github.com/Koruption/motif/blob/main/music-to-image.gif" alt="Music to Image Process" />
+</div>
+
 So how does an image turn into music?
 
 The system begins by reducing the image into a set of statistical descriptors: brightness, contrast, color distributions, saturation, density.

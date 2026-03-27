@@ -142,4 +142,36 @@
   :global(.markdown-content mjx-container) {
     color: white;
   }
+
+  :global(.markdown-content .art-exhibit-wall) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+    margin: 2.5rem 0 3rem;
+    padding: 1.5rem;
+    background:
+      linear-gradient(180deg, rgb(248 248 244 / 0.98), rgb(233 233 226 / 0.96));
+    box-shadow:
+      0 28px 70px -42px rgb(0 0 0 / 0.8),
+      inset 0 1px 0 rgb(255 255 255 / 0.8);
+  }
+
+  :global(.markdown-content .art-exhibit-piece) {
+    width: 100%;
+    margin: 0;
+    padding: 0.6rem;
+    border: 1px solid rgb(15 23 42 / 0.08);
+    border-radius: 0;
+    background: linear-gradient(180deg, #fffefc, #f7f3ea);
+    box-shadow:
+      0 18px 30px -24px rgb(15 23 42 / 0.45),
+      0 0 0 10px rgb(255 255 255 / 0.92);
+  }
+
+  @media (max-width: 720px) {
+    :global(.markdown-content .art-exhibit-wall) {
+      grid-template-columns: 1fr;
+      padding: 1rem;
+    }
+  }
 </style>
