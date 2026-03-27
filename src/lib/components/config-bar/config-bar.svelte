@@ -54,7 +54,7 @@
 
   let musicProfileChartData = $derived([
     { label: "warmth", value: macros?.warmth ?? 20 },
-    { label: "brightmess", value: macros?.brightness ?? 20 },
+    { label: "brightness", value: macros?.brightness ?? 20 },
     { label: "density", value: macros?.density ?? 20 },
     { label: "energy", value: macros?.energy ?? 20 },
     { label: "entropy", value: macros?.entropy ?? 20 },
@@ -194,7 +194,7 @@
 </script>
 
 <div
-  class="flex h-full min-h-0 w-full max-w-[25%] flex-col overflow-hidden border-r-2 border-r-gray-700 bg-background p-4"
+  class="flex h-full min-h-0 w-full max-w-[25%] flex-col overflow-hidden border-r border-r-neutral-800 bg-background p-4"
 >
   <Tabs.Root value="account" class="flex min-h-0 flex-1 flex-col">
     <Tabs.List
