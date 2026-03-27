@@ -40,8 +40,11 @@
         </Empty.Description>
       </Empty.Header>
       <Empty.Content>
-        <div class="flex gap-2">
+        <div class="flex flex-col items-center gap-3">
           <Button onclick={onUploadImageSelected}>Upload Image</Button>
+          <p class="text-sm text-muted-foreground">
+            Or drag and drop an image anywhere in the workspace.
+          </p>
         </div>
       </Empty.Content>
       <Button

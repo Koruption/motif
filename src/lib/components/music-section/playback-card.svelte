@@ -203,9 +203,9 @@
   });
 </script>
 
-<section class="h-full w-full">
+<section class="h-full min-w-0 w-full">
   <div
-    class="flex h-full w-full items-center gap-6 overflow-hidden rounded-3xl text-neutral-950"
+    class="flex h-full w-full flex-col gap-6 overflow-hidden rounded-3xl text-neutral-950 sm:flex-row sm:items-center"
   >
     <div class="relative flex size-40 shrink-0 items-center justify-center">
       <svg
@@ -260,7 +260,9 @@
       ></div>
     </div>
 
-    <div class="flex min-w-0 flex-1 items-center justify-between gap-4">
+    <div
+      class="flex min-w-0 flex-1 flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div class="min-w-0">
         <p
           class="mb-2 text-[0.7rem] font-medium uppercase tracking-[0.28em] text-neutral-500"
@@ -283,7 +285,9 @@
         </p>
       </div>
 
-      <div class="flex shrink-0 items-center gap-3">
+      <div
+        class="flex shrink-0 items-center gap-3 self-end sm:self-auto"
+      >
         <button
           type="button"
           class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white px-4 text-sm font-medium text-neutral-950 shadow-[0_10px_30px_-18px_rgba(255,255,255,0.75)] transition duration-200 ease-out hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60"

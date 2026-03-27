@@ -2,12 +2,14 @@
   import { Button } from "$lib/components/ui/button";
   import { Slider } from "$lib/components/ui/slider";
   import { toast } from "svelte-sonner";
+  import Pencil from "@tabler/icons-svelte/icons/pencil";
   import { Label } from "$lib/components/ui/label";
   import * as Card from "$lib/components/ui/card/index.js";
   import { filePickerStore } from "$lib/stores/filePicker";
   import RadarChart from "../radar-chart/radar-chart.svelte";
   import ScrollArea from "../ui/scroll-area/scroll-area.svelte";
   import BpmVisualizer from "../bpm-visualizer/bpm-visualizer.svelte";
+  import PlaceholderPreview from "./placeholder-preview.svelte";
   import { generationConfigStore } from "$lib/stores/generationConfig";
   import { processedImageStore } from "$lib/stores/imageData";
   import { Separator } from "$lib/components/ui/separator/index.js";
@@ -23,6 +25,7 @@
   import { derived, type Readable } from "svelte/store";
   import { Root } from "../ui/empty";
 
+  let { onUploadImageSelected } = $props();
   let selectedFile = $state<string | null>(null);
   let pixelationAmount = $state(50);
   let bpm = $state(90);
@@ -40,9 +43,6 @@
       return playbackSequenceToDisplaySummary($data.sequence);
     },
   );
-
-  const placeholderImageUrl =
-    "https://favim.com/pd/p/orig/2019/03/15/aesthetic-lofi-chill-Favim.com-7003448.gif";
 
   const musicProfileSeries = [
     {
@@ -214,12 +214,46 @@
     <ScrollArea class="h-0 flex-1">
       <div class="flex flex-col">
         <Tabs.Content value="account">
-          <img
-            class="mb-4 h-70 w-full rounded-md object-cover"
-            src={selectedFile ?? placeholderImageUrl}
-            alt={"Selected Image"}
-            decoding="async"
-          />
+          {#if selectedFile}
+            <div class="group relative mb-4">
+              <img
+                class="h-70 w-full rounded-md object-cover"
+                src={selectedFile}
+                alt={"Selected Image"}
+                decoding="async"
+              />
+
+              <div
+                class="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-full border border-white/12 bg-black/45 px-3 py-1 text-[0.68rem] font-medium uppercase tracking-[0.2em] text-white/78 shadow-[0_8px_24px_-18px_rgba(0,0,0,0.8)] transition duration-200 group-hover:opacity-0"
+              >
+                <Pencil class="size-3.5" />
+                Edit
+              </div>
+
+              <button
+                type="button"
+                class="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md bg-black/58 opacity-0 transition duration-200 ease-out hover:opacity-100 focus-visible:opacity-100 focus:outline-none group-hover:opacity-100"
+                onclick={onUploadImageSelected}
+                aria-label="Choose a new image"
+              >
+                <span
+                  class="flex size-11 items-center justify-center rounded-full border border-white/18 bg-white/8 text-white"
+                >
+                  <Pencil class="size-5" />
+                </span>
+                <span
+                  class="text-sm font-semibold uppercase tracking-[0.22em] text-white"
+                >
+                  Replace Image
+                </span>
+                <span class="text-xs text-white/62">
+                  Click to choose a new file
+                </span>
+              </button>
+            </div>
+          {:else}
+            <PlaceholderPreview />
+          {/if}
 
           <Card.Root class="w-full max-w-sm rounded-md bg-transparent border-0">
             <Card.Header class="p-0">

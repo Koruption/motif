@@ -5,7 +5,7 @@
   import { filePickerStore } from "$lib/stores/filePicker";
   import { processedImageStore } from "$lib/stores/imageData";
 
-  let uploadImageSelected = $state(false);
+  let uploadImageRequestId = $state(0);
 
   const defaultBackground =
     "linear-gradient(to bottom, rgb(23 23 23 / 0.18) 0%, rgb(10 10 10 / 0.7) 62%, rgb(0 0 0 / 0.98) 100%), radial-gradient(circle at top center, rgb(64 64 64 / 0.28) 0%, rgb(17 17 17 / 0.72) 48%, rgb(0 0 0 / 0.92) 100%)";
@@ -33,20 +33,22 @@
   function onFileSelected(files: File[]) {
     filePickerStore.set({ files });
   }
+
+  function requestImageUpload() {
+    uploadImageRequestId += 1;
+  }
 </script>
 
 <main
   class="flex h-full min-h-0 w-full flex-row overflow-hidden transition-colors duration-2000 ease-out"
   style={`background: ${mainBackground};`}
 >
-  <ConfigBar />
+  <ConfigBar onUploadImageSelected={requestImageUpload} />
   <FileDrop
-    {uploadImageSelected}
+    uploadRequestId={uploadImageRequestId}
     {onFileSelected}
-    onSelectionCanceled={() => {
-      uploadImageSelected = false;
-    }}
+    onSelectionCanceled={() => {}}
   >
-    <DisplayArea onUploadImageSelected={() => (uploadImageSelected = true)} />
+    <DisplayArea onUploadImageSelected={requestImageUpload} />
   </FileDrop>
 </main>

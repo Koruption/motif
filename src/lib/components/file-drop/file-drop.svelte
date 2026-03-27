@@ -1,7 +1,7 @@
 <script lang="ts">
   import { on } from "svelte/events";
 
-  let { children, uploadImageSelected, onFileSelected, onSelectionCanceled } =
+  let { children, uploadRequestId = 0, onFileSelected, onSelectionCanceled } =
     $props();
   let isDragging = false;
   let files: File[] = [];
@@ -41,6 +41,7 @@
   }
 
   function openFilePicker() {
+    fileInput.value = "";
     fileInput.click();
   }
 
@@ -49,7 +50,7 @@
   }
 
   $effect(() => {
-    if (uploadImageSelected) {
+    if (uploadRequestId > 0) {
       openFilePicker();
     }
   });
