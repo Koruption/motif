@@ -16,6 +16,11 @@
   import { onMount } from "svelte";
   import { toast } from "svelte-sonner";
 
+  import { dev } from "$app/environment";
+  import { injectAnalytics } from "@vercel/analytics/sveltekit";
+
+  injectAnalytics({ mode: dev ? "development" : "production" });
+
   let { children } = $props();
   let isExporting = $state(false);
   let appVisible = $state(false);
@@ -28,7 +33,8 @@
 
   const exportLabel = $derived(isExporting ? "Exporting..." : "Export ZIP");
   const canExport = $derived(
-    $generationConfigStore.sequence != null && $filePickerStore.files.at(-1) != null,
+    $generationConfigStore.sequence != null &&
+      $filePickerStore.files.at(-1) != null,
   );
 
   onMount(() => {
@@ -97,7 +103,9 @@
     appVisible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
   }`}
 >
-  <header class="border-b border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl">
+  <header
+    class="border-b border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl"
+  >
     <div class="flex items-center justify-between gap-3">
       <a
         href="/"
