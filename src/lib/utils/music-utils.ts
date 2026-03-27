@@ -1141,17 +1141,17 @@ function mapMacroToStyle(macros: MacroControls, bpm = 90): GeneratorStyle {
     nonChordToneBias: lerp(1.1, 4.2, tension),
     leapPenalty: lerp(0.55, 0.08, energy),
     repeatNoteBias: lerp(
-      0.05,
-      -1.1,
-      energy * 0.45 + entropy * 0.2 + bpmFast * 0.35,
+      -0.2,
+      -1.8,
+      energy * 0.4 + entropy * 0.2 + bpmFast * 0.3,
     ),
     directionalDriftBias: lerp(0.45, 1.8, brightness),
     tensionNoteBias: lerp(1.2, 4.6, tension),
-    arpeggioPathBias: lerp(0.25, 0.9, energy * 0.55 + brightness * 0.45),
+    arpeggioPathBias: lerp(0.12, 0.42, energy * 0.45 + brightness * 0.25),
     harmonyRefreshMelodyChance: lerp(
-      0.48,
-      0.94,
-      energy * 0.35 + entropy * 0.15 + bpmFast * 0.5,
+      0.12,
+      0.42,
+      energy * 0.22 + entropy * 0.12 + bpmFast * 0.28,
     ),
 
     preferredHarmonyDurations: remapDurationWeights(
@@ -1161,9 +1161,9 @@ function mapMacroToStyle(macros: MacroControls, bpm = 90): GeneratorStyle {
     ),
 
     preferredMelodyDurations: remapDurationWeights(
-      [0.25, 0.5, 1, 2],
-      Math.min(1, 0.46 * energy + 0.14 * density + 0.58 * bpmFast),
-      6.8,
+      [0.5, 1, 2, 4],
+      Math.min(1, 0.24 * energy + 0.08 * density + 0.32 * bpmFast),
+      4.4,
     ),
 
     maxLeapSemitones: Math.round(lerp(4, 14, energy)),
@@ -1226,6 +1226,7 @@ type GeneratorState = {
   harmonyBeatsLeft: number;
 
   currentNote: Note;
+  repeatedNoteCount: number;
 
   currentMelodyPath: Note[];
   melodyPathIndex: number;
@@ -1321,11 +1322,11 @@ const DefaultStyle: GeneratorStyle = {
   chordToneTargetBias: 5,
   nonChordToneBias: 1,
   leapPenalty: 0.45,
-  repeatNoteBias: 0.8,
+  repeatNoteBias: -0.8,
   directionalDriftBias: 0.35,
   tensionNoteBias: 1.25,
-  arpeggioPathBias: 0.45,
-  harmonyRefreshMelodyChance: 0.35,
+  arpeggioPathBias: 0.24,
+  harmonyRefreshMelodyChance: 0.16,
 
   // time
   preferredHarmonyDurations: [
@@ -1335,10 +1336,10 @@ const DefaultStyle: GeneratorStyle = {
     { value: 8, weight: 0.5 },
   ],
   preferredMelodyDurations: [
-    { value: 0.25, weight: 7 },
-    { value: 0.5, weight: 7 },
-    { value: 1, weight: 3 },
-    { value: 2, weight: 0.5 },
+    { value: 0.5, weight: 3 },
+    { value: 1, weight: 8 },
+    { value: 2, weight: 6 },
+    { value: 4, weight: 2.5 },
   ],
 
   // motion
@@ -1453,6 +1454,7 @@ function buildRepeatedDrumPattern(
   totalTicks: number,
   tickBeats: number,
   bpm: number,
+  macros: MacroControls = DefaultMacros,
   startTickOffset = 0,
 ): PlayableEvent[] {
   if (totalTicks <= 0) return [];
@@ -1460,40 +1462,39 @@ function buildRepeatedDrumPattern(
   const totalBeats = totalTicks * tickBeats;
   const totalMeasures = Math.ceil(totalBeats / 4);
   const bpmNormalized = clamp((bpm - 72) / 76, 0, 1);
+  const energy = clamp(macros.energy, 0, 1);
+  const density = clamp(macros.density, 0, 1);
+  const warmth = clamp(macros.warmth, 0, 1);
+  const entropy = clamp(macros.entropy, 0, 1);
   const oneTick = Math.max(tickBeats, 0.25);
-  const stochasticGrid = bpm >= 132 ? 0.25 : 0.5;
-  const hatStep = bpm >= 132 ? 0.25 : 0.5;
+  const pulseDensity = clamp(
+    0.18 + energy * 0.3 + density * 0.22 + bpmNormalized * 0.12 - warmth * 0.08,
+    0.12,
+    0.72,
+  );
+  const stochasticGrid = bpm >= 132 && pulseDensity > 0.52 ? 0.25 : 0.5;
+  const hatStep = pulseDensity > 0.5 ? 0.5 : 1;
   const hatDuration = Math.min(oneTick, hatStep);
 
   const backbone: DrumPatternHit[] = [
-    { voice: "kick", beat: 0, durationBeats: oneTick, velocity: 0.96 },
+    { voice: "kick", beat: 0, durationBeats: oneTick, velocity: 0.64 },
     {
       voice: "kick",
-      beat: bpm >= 124 ? 2.5 : 2,
+      beat: bpm >= 124 || pulseDensity > 0.48 ? 2.5 : 2,
       durationBeats: oneTick,
-      velocity: 0.82,
+      velocity: 0.34 + pulseDensity * 0.16,
     },
-    { voice: "snare", beat: 1, durationBeats: oneTick, velocity: 0.78 },
-    { voice: "snare", beat: 3, durationBeats: oneTick, velocity: 0.86 },
   ];
 
-  for (let beat = 0; beat < 4; beat += hatStep) {
-    const offbeat = Math.round((beat % 1) * 1000) !== 0;
-    const sixteenthOff = Math.round((beat % 0.5) * 1000) !== 0;
+  const hatBackboneBeats =
+    hatStep === 1 ? [1.5, 3.5] : [0.5, 1.5, 2.5, 3.5];
+
+  for (const beat of hatBackboneBeats) {
     backbone.push({
       voice: "hat",
       beat,
       durationBeats: hatDuration,
-      velocity:
-        bpm >= 132
-          ? sixteenthOff
-            ? 0.2
-            : offbeat
-              ? 0.34
-              : 0.28
-          : offbeat
-            ? 0.3
-            : 0.22,
+      velocity: 0.1 + pulseDensity * 0.08,
     });
   }
 
@@ -1506,85 +1507,85 @@ function buildRepeatedDrumPattern(
       voice: "kick",
       beat: 0.75,
       durationBeats: oneTick,
-      velocity: 0.64,
-      probability: 0.12 + bpmNormalized * 0.08,
+      velocity: 0.24,
+      probability: 0.02 + pulseDensity * 0.08,
     },
     {
       voice: "kick",
       beat: 1.5,
       durationBeats: oneTick,
-      velocity: 0.7,
-      probability: 0.2 + bpmNormalized * 0.18,
+      velocity: 0.3,
+      probability: 0.04 + pulseDensity * 0.12,
     },
     {
       voice: "kick",
       beat: 2.75,
       durationBeats: oneTick,
-      velocity: 0.68,
-      probability: 0.16 + bpmNormalized * 0.16,
+      velocity: 0.28,
+      probability: 0.04 + pulseDensity * 0.1,
     },
     {
       voice: "kick",
       beat: 3.5,
       durationBeats: oneTick,
-      velocity: 0.6,
-      probability: 0.1 + bpmNormalized * 0.12,
+      velocity: 0.2,
+      probability: 0.02 + pulseDensity * 0.08,
     },
     {
       voice: "snare",
       beat: 0.5,
       durationBeats: oneTick,
-      velocity: 0.36,
-      probability: 0.08 + bpmNormalized * 0.1,
+      velocity: 0.16,
+      probability: 0.01 + entropy * 0.04 + pulseDensity * 0.03,
     },
     {
       voice: "snare",
       beat: 1.75,
       durationBeats: oneTick,
-      velocity: 0.42,
-      probability: 0.14 + bpmNormalized * 0.12,
+      velocity: 0.2,
+      probability: 0.02 + entropy * 0.05 + pulseDensity * 0.04,
     },
     {
       voice: "snare",
       beat: 2.5,
       durationBeats: oneTick,
-      velocity: 0.34,
-      probability: 0.08 + bpmNormalized * 0.1,
+      velocity: 0.14,
+      probability: 0.01 + entropy * 0.04 + pulseDensity * 0.02,
     },
     {
       voice: "snare",
       beat: 3.75,
       durationBeats: oneTick,
-      velocity: 0.44,
-      probability: 0.18 + bpmNormalized * 0.14,
+      velocity: 0.18,
+      probability: 0.03 + entropy * 0.06 + pulseDensity * 0.04,
     },
     {
       voice: "hat",
       beat: 0.75,
       durationBeats: hatDuration,
-      velocity: 0.18,
-      probability: 0.12 + bpmNormalized * 0.08,
+      velocity: 0.1,
+      probability: 0.05 + pulseDensity * 0.07,
     },
     {
       voice: "hat",
       beat: 1.25,
       durationBeats: hatDuration,
-      velocity: 0.22,
-      probability: 0.16 + bpmNormalized * 0.1,
+      velocity: 0.12,
+      probability: 0.04 + pulseDensity * 0.08,
     },
     {
       voice: "hat",
       beat: 2.25,
       durationBeats: hatDuration,
-      velocity: 0.2,
-      probability: 0.14 + bpmNormalized * 0.1,
+      velocity: 0.11,
+      probability: 0.04 + pulseDensity * 0.08,
     },
     {
       voice: "hat",
       beat: 3.25,
       durationBeats: hatDuration,
-      velocity: 0.24,
-      probability: 0.18 + bpmNormalized * 0.12,
+      velocity: 0.12,
+      probability: 0.05 + pulseDensity * 0.09,
     },
   ];
 
@@ -1640,6 +1641,100 @@ function buildRepeatedDrumPattern(
   }
 
   return drums;
+}
+
+function shapeAmbientLeadEvents(
+  notes: PlayableEvent[],
+  tickBeats: number,
+  maxEndTick: number,
+  bpm: number,
+  macros: MacroControls,
+): PlayableEvent[] {
+  if (notes.length === 0) return notes;
+
+  const energy = clamp(macros.energy, 0, 1);
+  const density = clamp(macros.density, 0, 1);
+  const warmth = clamp(macros.warmth, 0, 1);
+  const entropy = clamp(macros.entropy, 0, 1);
+  const brightness = clamp(macros.brightness, 0, 1);
+  const bpmNormalized = clamp((bpm - 72) / 76, 0, 1);
+
+  const maxSustainBeats = clamp(
+    4.5 + warmth * 2.5 + (1 - energy) * 1.6 - bpmNormalized * 1.2,
+    3.5,
+    8,
+  );
+  const maxSustainTicks = Math.max(1, Math.round(maxSustainBeats / tickBeats));
+  const baseDropChance = clamp(
+    0.22 + warmth * 0.18 + (1 - density) * 0.1 + (1 - energy) * 0.12,
+    0.12,
+    0.54,
+  );
+
+  const retained: PlayableEvent[] = [];
+
+  for (let index = 0; index < notes.length; index += 1) {
+    const event = notes[index];
+    const previousSource = notes[index - 1];
+    const previousRetained = retained[retained.length - 1];
+    const duration = event.durationBeats;
+    const isRepeatedSource =
+      previousSource?.note && event.note
+        ? noteEq(previousSource.note, event.note)
+        : false;
+    const isRepeatedRetained =
+      previousRetained?.note && event.note
+        ? noteEq(previousRetained.note, event.note)
+        : false;
+    const inChord =
+      !!event.note &&
+      !!event.activeChord &&
+      chordNotesContain(event.activeChord, event.note);
+    const onDownbeat = Math.abs((event.beatInMeasure ?? 0) % 1) < 0.001;
+    const isShort = duration <= 0.5;
+
+    let dropChance = baseDropChance;
+
+    if (isShort) dropChance += 0.16;
+    if (isRepeatedSource) dropChance += 0.24;
+    if (isRepeatedRetained) dropChance += 0.16;
+    if (onDownbeat) dropChance -= 0.14;
+    if (duration >= 2) dropChance -= 0.22;
+    if (inChord) dropChance -= 0.1;
+    if (brightness > 0.68 && event.measure % 2 === 0) dropChance -= 0.04;
+    if (entropy > 0.7) dropChance -= 0.05;
+
+    const shouldRetain =
+      index === 0 ||
+      duration >= 2 ||
+      onDownbeat ||
+      Math.random() >= clamp(dropChance, 0.04, 0.82);
+
+    if (!shouldRetain) continue;
+
+    retained.push({ ...event });
+  }
+
+  if (retained.length === 0) {
+    return [{ ...notes[0] }];
+  }
+
+  for (let index = 0; index < retained.length; index += 1) {
+    const current = retained[index];
+    const next = retained[index + 1];
+    const nextStartTick = next?.startTick ?? maxEndTick + 1;
+    const availableTicks = Math.max(1, nextStartTick - current.startTick);
+    const sustainTicks = Math.min(availableTicks, maxSustainTicks);
+    current.endTick = Math.min(
+      maxEndTick,
+      current.startTick + sustainTicks - 1,
+    );
+    current.durationBeats = (current.endTick - current.startTick + 1) * tickBeats;
+    current.startSeconds = beatsToSeconds(current.startBeat, bpm);
+    current.durationSeconds = beatsToSeconds(current.durationBeats, bpm);
+  }
+
+  return retained;
 }
 
 function expScore(x: number) {
@@ -2165,7 +2260,7 @@ function chooseInitialBpm(macros: MacroControls): number {
 }
 
 export const choosePlaybackVelocity = () =>
-  clamp(Dist.normal(0.72, 0.08), 0.55, 0.92);
+  clamp(Dist.normal(0.48, 0.05), 0.32, 0.68);
 
 export function createInitialSeed(
   partialMacros?: Partial<MacroControls>,
@@ -2216,6 +2311,7 @@ export class MarkovChain {
       harmonyBeatsLeft: 0,
 
       currentNote: options.initialNote,
+      repeatedNoteCount: 0,
       currentMelodyPath: [options.initialNote],
       melodyPathIndex: 0,
       melodyStepBeats: this.tickBeats,
@@ -2256,6 +2352,7 @@ export class MarkovChain {
       harmonyBeatsLeft: 0,
 
       currentNote: options.initialNote,
+      repeatedNoteCount: 0,
       currentMelodyPath: [options.initialNote],
       melodyPathIndex: 0,
       melodyStepBeats: this.tickBeats,
@@ -2501,7 +2598,12 @@ export class MarkovChain {
     score -= this.style.leapPenalty * leap;
 
     if (noteEq(candidate, current.currentNote)) {
-      score += this.style.repeatNoteBias;
+      score +=
+        this.style.repeatNoteBias -
+        current.repeatedNoteCount * 1.4 -
+        Math.max(0, current.repeatedNoteCount - 2) * 1.7;
+    } else if (current.repeatedNoteCount >= 2) {
+      score += 1.2 + Math.min(2, leap * 0.14);
     }
 
     const dirHint = melodicDirectionHint(
@@ -2540,8 +2642,14 @@ export class MarkovChain {
     chord: Chord | null,
     current: GeneratorState,
   ): Note {
-    const candidates = this.melodyCandidates(scale, chord, current).map(
-      (note) => {
+    const rawCandidates = this.melodyCandidates(scale, chord, current);
+    const filteredCandidates =
+      current.repeatedNoteCount >= 4
+        ? rawCandidates.filter((note) => !noteEq(note, current.currentNote))
+        : rawCandidates;
+    const sourceCandidates =
+      filteredCandidates.length > 0 ? filteredCandidates : rawCandidates;
+    const candidates = sourceCandidates.map((note) => {
         const rawWeight = this.scoreMelodyCandidate(
           note,
           scale,
@@ -2552,8 +2660,7 @@ export class MarkovChain {
           value: note,
           weight: applyTemperature(rawWeight, this.macros.entropy),
         };
-      },
-    );
+      });
 
     return weightedSample(candidates);
   }
@@ -2699,6 +2806,9 @@ export class MarkovChain {
     this.state = {
       ...this.state,
       currentNote: currentPathNote,
+      repeatedNoteCount: noteEq(currentPathNote, this.state.currentNote)
+        ? this.state.repeatedNoteCount + 1
+        : 0,
     };
 
     const frame = this.emitCurrentFrame();
@@ -2902,7 +3012,7 @@ export class MarkovChain {
         notes,
         noteEvent,
         (a, b) => !!a.note && !!b.note && noteEq(a.note, b.note),
-        0.5,
+        4,
       );
 
       pushOrExtend(
@@ -2921,10 +3031,19 @@ export class MarkovChain {
 
     const totalTicks = frames.length;
     const firstTick = frames[0]?.tick ?? 0;
+    const maxEndTick = firstTick + totalTicks - 1;
+    const shapedNotes = shapeAmbientLeadEvents(
+      notes,
+      this.tickBeats,
+      maxEndTick,
+      bpm,
+      this.macros,
+    );
     const drums = buildRepeatedDrumPattern(
       totalTicks,
       this.tickBeats,
       bpm,
+      this.macros,
       firstTick,
     );
 
@@ -2954,7 +3073,7 @@ export class MarkovChain {
       totalBeats,
       totalSeconds,
 
-      events: [...events, ...drums].sort((a, b) => {
+      events: [...events.filter((event) => event.type !== "note"), ...shapedNotes, ...drums].sort((a, b) => {
         if (a.startTick !== b.startTick) return a.startTick - b.startTick;
 
         const order: Record<PlayableEventType, number> = {
@@ -2966,7 +3085,7 @@ export class MarkovChain {
 
         return order[a.type] - order[b.type];
       }),
-      notes,
+      notes: shapedNotes,
       chords,
       scales,
       drums,
@@ -3037,6 +3156,7 @@ export class MarkovChain {
       scale: this.state.scale,
       chord: this.state.chord,
       currentNote: this.state.currentNote,
+      repeatedNoteCount: this.state.repeatedNoteCount,
       currentMelodyPath: [...this.state.currentMelodyPath],
     };
   }
@@ -3321,12 +3441,12 @@ const sampleSine = (phase: number): number => Math.sin(phase * Math.PI * 2);
 const applyAmbientTail = (
   buffer: Float32Array,
   sampleRate: number,
-  dryMix = 0.78,
-  wetMix = 0.38,
+  dryMix = 0.62,
+  wetMix = 0.62,
 ) => {
   const wet = new Float32Array(buffer.length);
-  const tapDelays = [0.18, 0.37, 0.73, 1.1];
-  const tapGains = [0.2, 0.16, 0.12, 0.08];
+  const tapDelays = [0.19, 0.41, 0.73, 1.18, 1.74, 2.42];
+  const tapGains = [0.18, 0.16, 0.13, 0.1, 0.07, 0.05];
 
   for (let tapIndex = 0; tapIndex < tapDelays.length; tapIndex += 1) {
     const delaySamples = Math.floor(tapDelays[tapIndex] * sampleRate);
@@ -3338,10 +3458,12 @@ const applyAmbientTail = (
   }
 
   let filtered = 0;
+  let bloom = 0;
 
   for (let i = 0; i < wet.length; i += 1) {
-    filtered = filtered * 0.92 + wet[i] * 0.08;
-    wet[i] = filtered;
+    filtered = filtered * 0.958 + wet[i] * 0.042;
+    bloom = bloom * 0.989 + filtered * 0.011;
+    wet[i] = filtered * 0.76 + bloom * 0.98;
   }
 
   for (let i = 0; i < buffer.length; i += 1) {
@@ -3450,28 +3572,36 @@ export const renderPlayableSequenceToWavBlob = async (
     );
     const length = Math.max(1, Math.floor(event.durationSeconds * sampleRate));
     const endSample = Math.min(totalSamples, startSample + length);
-    const attackSamples = Math.floor(sampleRate * 0.05);
-    const releaseSamples = Math.floor(sampleRate * 0.55);
+    const attackSamples = Math.floor(sampleRate * 0.34);
+    const releaseSamples = Math.floor(sampleRate * 4.6);
     const phaseStep = noteToFrequency(event.note) / sampleRate;
-    const amplitude = sampleVelocity() * 0.11;
+    const amplitude = sampleVelocity() * 0.038;
     let phase = 0;
+    let shimmerPhase = 0;
+    let bloomPhase = 0;
 
     for (let i = startSample; i < endSample; i += 1) {
       const localIndex = i - startSample;
+      const time = localIndex / sampleRate;
       const env = envelopeAt(
         localIndex,
         endSample - startSample,
         attackSamples,
         releaseSamples,
       );
-      const vibrato = 1 + 0.0025 * sampleSine((localIndex / sampleRate) * 0.18);
+      const vibrato = 1 + 0.0016 * sampleSine(time * 0.11);
       const voice =
-        sampleSine(phase) * 0.76 +
-        sampleTriangle(phase * 0.5) * 0.18 +
-        sampleSine(phase * 2) * 0.06;
+        sampleSine(phase) * 0.64 +
+        sampleTriangle(phase * 0.5) * 0.08 +
+        sampleSine(shimmerPhase) * 0.12 +
+        sampleSine(phase * 2) * 0.02 +
+        sampleSine(bloomPhase) * 0.03;
 
       output[i] += voice * env * amplitude;
       phase += phaseStep * vibrato;
+      shimmerPhase +=
+        phaseStep * 2.01 * (1 + 0.0012 * sampleSine(time * 0.07));
+      bloomPhase += phaseStep * 1.004;
     }
   }
 
@@ -3487,10 +3617,11 @@ export const renderPlayableSequenceToWavBlob = async (
     );
     const length = Math.max(1, Math.floor(event.durationSeconds * sampleRate));
     const endSample = Math.min(totalSamples, startSample + length);
-    const attackSamples = Math.floor(sampleRate * 0.18);
-    const releaseSamples = Math.floor(sampleRate * 1.6);
-    const amplitude = sampleVelocity() * (0.05 / chordNotes.length);
+    const attackSamples = Math.floor(sampleRate * 0.38);
+    const releaseSamples = Math.floor(sampleRate * 3.4);
+    const amplitude = sampleVelocity() * (0.032 / chordNotes.length);
     const phases = chordNotes.map(() => 0);
+    const bloomPhases = chordNotes.map(() => 0);
     const phaseSteps = chordNotes.map(
       (note) => noteToFrequency(note) / sampleRate,
     );
@@ -3503,16 +3634,19 @@ export const renderPlayableSequenceToWavBlob = async (
         attackSamples,
         releaseSamples,
       );
+      const time = localIndex / sampleRate;
       let mixed = 0;
 
       for (let noteIndex = 0; noteIndex < chordNotes.length; noteIndex += 1) {
         mixed +=
-          sampleSine(phases[noteIndex]) * 0.72 +
-          sampleSine(phases[noteIndex] * 0.5) * 0.18 +
-          sampleTriangle(phases[noteIndex] * 0.25) * 0.05;
+          sampleSine(phases[noteIndex]) * 0.58 +
+          sampleSine(phases[noteIndex] * 0.5) * 0.22 +
+          sampleTriangle(phases[noteIndex] * 0.25) * 0.08 +
+          sampleSine(bloomPhases[noteIndex]) * 0.06;
         phases[noteIndex] +=
           phaseSteps[noteIndex] *
-          (1 + 0.0009 * sampleSine((localIndex / sampleRate) * 0.05));
+          (1 + 0.0007 * sampleSine(time * 0.05));
+        bloomPhases[noteIndex] += phaseSteps[noteIndex] * 1.0018;
       }
 
       output[i] += mixed * env * amplitude;
@@ -3539,11 +3673,11 @@ export const renderPlayableSequenceToWavBlob = async (
       for (let i = startSample; i < endSample; i += 1) {
         const localIndex = i - startSample;
         const t = localIndex / sampleRate;
-        const env = Math.exp(-t * 14) * velocity * 0.42;
-        const frequency = 92 * Math.exp(-t * 10) + 38;
+        const env = Math.exp(-t * 8.5) * velocity * 0.16;
+        const frequency = 54 * Math.exp(-t * 7.5) + 36;
         phase += frequency / sampleRate;
         output[i] +=
-          (sampleSine(phase) * 0.85 + sampleSine(phase * 0.5) * 0.15) * env;
+          (sampleSine(phase) * 0.74 + sampleSine(phase * 0.5) * 0.18) * env;
       }
 
       continue;
@@ -3553,13 +3687,13 @@ export const renderPlayableSequenceToWavBlob = async (
       for (let i = startSample; i < endSample; i += 1) {
         const localIndex = i - startSample;
         const t = localIndex / sampleRate;
-        const env = Math.exp(-t * 42) * velocity * 0.09;
+        const env = Math.exp(-t * 24) * velocity * 0.018;
         const noise =
           hashUnit((i + 1) * 31.337 + event.startSeconds * 151.7) * 2 - 1;
         output[i] +=
-          (noise * 0.72 +
-            sampleSine(t * 4800) * 0.08 +
-            sampleSine(t * 8200) * 0.04) *
+          (noise * 0.32 +
+            sampleSine(t * 4200) * 0.028 +
+            sampleSine(t * 7600) * 0.012) *
           env;
       }
 
@@ -3569,14 +3703,14 @@ export const renderPlayableSequenceToWavBlob = async (
     for (let i = startSample; i < endSample; i += 1) {
       const localIndex = i - startSample;
       const t = localIndex / sampleRate;
-      const env = Math.exp(-t * 18) * velocity * 0.16;
+      const env = Math.exp(-t * 9) * velocity * 0.028;
       const noise =
         hashUnit((i + 1) * 12.9898 + event.startSeconds * 78.233) * 2 - 1;
-      output[i] += (noise * 0.6 + sampleSine(t * 220) * 0.08) * env;
+      output[i] += (noise * 0.22 + sampleSine(t * 180) * 0.03) * env;
     }
   }
 
-  applyAmbientTail(output, sampleRate, 0.74, 0.52);
+  applyAmbientTail(output, sampleRate, 0.62, 0.62);
 
   let peak = 0;
 
@@ -3637,81 +3771,93 @@ const buildLofiPianoLead = (
 ): LofiInstrument<Tone.PolySynth> => {
   const synth = new Tone.PolySynth(Tone.Synth, {
     oscillator: {
-      type: "fatsawtooth",
-      count: 3,
-      spread: 16,
+      type: "sine",
     },
     envelope: {
-      attack: 0.004,
-      decay: 0.14,
-      sustain: 0.18,
-      release: 0.2,
+      attack: 0.42,
+      decay: 1.7,
+      sustain: 0.64,
+      release: 7.8,
     },
-    volume: -4,
+    volume: -12,
   });
 
   const hp = new Tone.Filter({
     type: "highpass",
-    frequency: 120,
+    frequency: 180,
     rolloff: -12,
   });
   const tone = new Tone.Filter({
     type: "lowpass",
-    frequency: 4200,
+    frequency: 2600,
     rolloff: -24,
-    Q: 0.42,
+    Q: 0.08,
   });
   const bloom = new Tone.Filter({
     type: "peaking",
     frequency: 1450,
-    gain: 3.2,
-    Q: 0.9,
+    gain: 0.45,
+    Q: 0.42,
   });
   const air = new Tone.Filter({
     type: "peaking",
-    frequency: 3200,
-    gain: 1.4,
-    Q: 0.8,
+    frequency: 3900,
+    gain: 0.4,
+    Q: 0.32,
   });
   const wobble = new Tone.Chorus({
-    frequency: 0.22,
-    delayTime: 2.2,
-    depth: 0.06,
-    spread: 100,
-    wet: 0.07,
+    frequency: 0.05,
+    delayTime: 6.2,
+    depth: 0.18,
+    spread: 180,
+    wet: 0.3,
   }).start();
-  const transient = new Tone.AutoFilter({
-    frequency: "16n",
-    depth: 0.12,
-    baseFrequency: 650,
-    octaves: 1.2,
-    wet: 0.04,
+  const transient = new Tone.Vibrato({
+    frequency: 3.4,
+    depth: 0.008,
+    wet: 0.05,
   });
-  transient.start();
+  const motion = new Tone.AutoFilter({
+    frequency: 0.018,
+    baseFrequency: 420,
+    octaves: 2.2,
+    depth: 0.22,
+    wet: 0.12,
+  }).start();
+  const width = new Tone.AutoPanner({
+    frequency: 0.011,
+    depth: 0.36,
+    wet: 0.2,
+  }).start();
   const slap = new Tone.PingPongDelay({
-    delayTime: "16n",
-    feedback: 0.08,
-    wet: 0.025,
+    delayTime: "8n.",
+    feedback: 0.22,
+    wet: 0.12,
+  });
+  const glow = new Tone.PingPongDelay({
+    delayTime: "2n.",
+    feedback: 0.38,
+    wet: 0.2,
   });
   const tape = new Tone.FeedbackDelay({
-    delayTime: "8n",
-    feedback: 0.08,
-    wet: 0.02,
+    delayTime: "1m",
+    feedback: 0.34,
+    wet: 0.16,
   });
   const room = new Tone.Reverb({
-    decay: 0.8,
-    preDelay: 0.008,
-    wet: 0.025,
+    decay: 9.4,
+    preDelay: 0.08,
+    wet: 0.34,
   });
   const drive = new Tone.Distortion({
-    distortion: 0.06,
-    wet: 0.08,
+    distortion: 0.0015,
+    wet: 0.002,
   });
   const compressor = new Tone.Compressor({
-    threshold: -20,
-    ratio: 3.4,
-    attack: 0.004,
-    release: 0.09,
+    threshold: -30,
+    ratio: 1.4,
+    attack: 0.18,
+    release: 1,
   });
 
   synth.chain(
@@ -3721,7 +3867,10 @@ const buildLofiPianoLead = (
     air,
     wobble,
     transient,
+    motion,
+    width,
     slap,
+    glow,
     tape,
     room,
     drive,
@@ -3738,7 +3887,10 @@ const buildLofiPianoLead = (
       air,
       wobble,
       transient,
+      motion,
+      width,
       slap,
+      glow,
       tape,
       room,
       drive,
@@ -3752,31 +3904,29 @@ const buildLofiPianoChords = (
 ): LofiInstrument<Tone.PolySynth> => {
   const synth = new Tone.PolySynth(Tone.MonoSynth, {
     oscillator: {
-      type: "fatsquare",
-      count: 3,
-      spread: 18,
+      type: "sine",
     },
     filter: {
-      Q: 1.1,
+      Q: 0.7,
       type: "lowpass",
       rolloff: -24,
     },
     envelope: {
-      attack: 0.06,
-      decay: 0.55,
-      sustain: 0.62,
-      release: 1.3,
+      attack: 0.75,
+      decay: 1.8,
+      sustain: 0.88,
+      release: 5.6,
     },
     filterEnvelope: {
-      attack: 0.01,
-      decay: 0.8,
-      sustain: 0.26,
-      release: 1.2,
-      baseFrequency: 160,
-      octaves: 3.2,
-      exponent: 2.2,
+      attack: 0.3,
+      decay: 1.9,
+      sustain: 0.5,
+      release: 3.8,
+      baseFrequency: 120,
+      octaves: 2.2,
+      exponent: 1.6,
     },
-    volume: -9,
+    volume: -13,
   });
 
   const hp = new Tone.Filter({
@@ -3786,58 +3936,58 @@ const buildLofiPianoChords = (
   });
   const tone = new Tone.Filter({
     type: "lowpass",
-    frequency: 2400,
+    frequency: 1800,
     rolloff: -24,
-    Q: 0.55,
+    Q: 0.35,
   });
   const warmth = new Tone.Filter({
     type: "peaking",
-    frequency: 260,
-    gain: 2.8,
+    frequency: 220,
+    gain: 1.8,
     Q: 0.85,
   });
   const haze = new Tone.Filter({
     type: "peaking",
-    frequency: 1500,
-    gain: 1.6,
+    frequency: 1150,
+    gain: 1.1,
     Q: 0.75,
   });
   const wobble = new Tone.Chorus({
-    frequency: 0.5,
-    delayTime: 9,
-    depth: 0.28,
+    frequency: 0.12,
+    delayTime: 7.2,
+    depth: 0.2,
     spread: 180,
-    wet: 0.24,
+    wet: 0.34,
   }).start();
   const vibrato = new Tone.Vibrato({
-    frequency: 4.1,
-    depth: 0.016,
-    wet: 0.03,
+    frequency: 3.2,
+    depth: 0.01,
+    wet: 0.05,
   });
   const stereo = new Tone.PingPongDelay({
-    delayTime: "4n",
-    feedback: 0.22,
-    wet: 0.1,
+    delayTime: "2n",
+    feedback: 0.18,
+    wet: 0.12,
   });
   const tape = new Tone.FeedbackDelay({
-    delayTime: "2n.",
-    feedback: 0.16,
-    wet: 0.06,
+    delayTime: "1m",
+    feedback: 0.18,
+    wet: 0.1,
   });
   const room = new Tone.Reverb({
-    decay: 2.7,
-    preDelay: 0.025,
-    wet: 0.12,
+    decay: 7.5,
+    preDelay: 0.04,
+    wet: 0.24,
   });
   const drive = new Tone.Distortion({
-    distortion: 0.1,
-    wet: 0.12,
+    distortion: 0.008,
+    wet: 0.012,
   });
   const compressor = new Tone.Compressor({
-    threshold: -22,
-    ratio: 2.2,
-    attack: 0.03,
-    release: 0.28,
+    threshold: -26,
+    ratio: 1.8,
+    attack: 0.08,
+    release: 0.6,
   });
 
   synth.chain(
@@ -3904,13 +4054,13 @@ export class ToneBridge {
 
   constructor(config: ToneBridgeInstrumentConfig = {}) {
     this.noteOutput = new Tone.Volume(
-      config.noteVolumeDb ?? -4,
+      config.noteVolumeDb ?? -7,
     ).toDestination();
     this.chordOutput = new Tone.Volume(
-      config.chordVolumeDb ?? -6,
+      config.chordVolumeDb ?? -10,
     ).toDestination();
     this.drumOutput = new Tone.Volume(
-      config.drumVolumeDb ?? -12,
+      config.drumVolumeDb ?? -18,
     ).toDestination();
 
     if (config.noteSynth) {
@@ -3940,14 +4090,14 @@ export class ToneBridge {
     this.kickSynth =
       config.kickSynth ??
       new Tone.MembraneSynth({
-        pitchDecay: 0.04,
-        octaves: 8,
+        pitchDecay: 0.02,
+        octaves: 2.8,
         oscillator: { type: "sine" },
         envelope: {
           attack: 0.001,
-          decay: 0.32,
+          decay: 0.28,
           sustain: 0,
-          release: 0.18,
+          release: 0.46,
         },
       }).connect(this.drumOutput);
 
@@ -3955,14 +4105,14 @@ export class ToneBridge {
       config.snareSynth ??
       new Tone.NoiseSynth({
         noise: {
-          type: "white",
-          playbackRate: 2.4,
+          type: "pink",
+          playbackRate: 1.3,
         },
         envelope: {
           attack: 0.001,
-          decay: 0.12,
+          decay: 0.18,
           sustain: 0,
-          release: 0.08,
+          release: 0.16,
         },
       }).connect(this.drumOutput);
 
@@ -3970,14 +4120,14 @@ export class ToneBridge {
       config.hatSynth ??
       new Tone.NoiseSynth({
         noise: {
-          type: "white",
-          playbackRate: 1.6,
+          type: "pink",
+          playbackRate: 1.05,
         },
         envelope: {
           attack: 0.001,
-          decay: 0.035,
+          decay: 0.045,
           sustain: 0,
-          release: 0.02,
+          release: 0.035,
         },
       }).connect(this.drumOutput);
   }

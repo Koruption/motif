@@ -19,8 +19,8 @@
 </script>
 
 {#if $fileSelected != null}
-  <div class="flex min-h-0 flex-col gap-4">
-    <div class="flex flex-row gap-4">
+  <div class="flex h-full min-h-0 flex-col justify-between">
+    <div class="flex flex-row items-start gap-4">
       <ImageView pixelationAmount={$generationConfigStore.pixelationAmount} />
       <ImageContent imageWrapper={$processedImageStore} />
     </div>

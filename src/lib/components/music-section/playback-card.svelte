@@ -203,7 +203,7 @@
   });
 </script>
 
-<section class="h-full min-w-0 w-full">
+<section class="h-full min-w-0 w-[94%] max-w-full">
   <div
     class="flex h-full w-full flex-col gap-6 overflow-hidden rounded-3xl text-neutral-950 sm:flex-row sm:items-center"
   >
@@ -285,9 +285,7 @@
         </p>
       </div>
 
-      <div
-        class="flex shrink-0 items-center gap-3 self-end sm:self-auto"
-      >
+      <div class="flex shrink-0 items-center gap-3 self-end sm:self-auto">
         <button
           type="button"
           class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white px-4 text-sm font-medium text-neutral-950 shadow-[0_10px_30px_-18px_rgba(255,255,255,0.75)] transition duration-200 ease-out hover:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60"

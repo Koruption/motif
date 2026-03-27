@@ -565,26 +565,26 @@
 
 <div class="flex w-full align-middle flex-col align gap-4">
   <div class="relative overflow-hidden p-4">
-    {#if hasSelectedFile && isLoading}
-      <div class="absolute inset-4 z-10 flex flex-col gap-3">
-        <Skeleton class="block h-[480px] w-[570px] rounded-md bg-neutral-900" />
-      </div>
-    {/if}
     <div
       class="flex flex-col gap-4 transition-opacity duration-700"
       class:opacity-0={!contentVisible}
       class:opacity-100={contentVisible}
     >
-      <div class="relative h-[480px] w-[570px]">
+      <div class="relative aspect-[570/480] h-[min(480px,42vh)]">
+        {#if hasSelectedFile && isLoading}
+          <div class="absolute inset-0 z-10 flex flex-col gap-3">
+            <Skeleton class="block h-full w-full rounded-md bg-neutral-900" />
+          </div>
+        {/if}
         <canvas
           bind:this={canvas}
-          class="absolute inset-0 block h-[480px] w-[570px] rounded-md border border-neutral-700 bg-black transition-opacity duration-500"
+          class="absolute inset-0 block h-full w-full rounded-md border border-neutral-700 bg-black transition-opacity duration-500"
           class:opacity-0={isLoading || activeCanvas !== "image"}
           class:opacity-100={!isLoading && activeCanvas === "image"}
         ></canvas>
         <canvas
           bind:this={generatedCanvas}
-          class="absolute inset-0 block h-[480px] w-[570px] rounded-md border border-neutral-700 bg-black transition-opacity duration-500"
+          class="absolute inset-0 block h-full w-full rounded-md border border-neutral-700 bg-black transition-opacity duration-500"
           class:opacity-0={isLoading || activeCanvas !== "generated"}
           class:opacity-100={!isLoading && activeCanvas === "generated"}
         ></canvas>
