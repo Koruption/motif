@@ -56,7 +56,7 @@
 </script>
 
 <div
-  class="flex flex-col gap-4 w-screen p-4"
+  class="flex h-full min-h-0 w-full flex-col gap-4 p-4"
   ondragover={handleDragOver}
   ondragleave={handleDragLeave}
   ondrop={handleDrop}

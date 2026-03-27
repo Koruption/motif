@@ -6,6 +6,10 @@
   import { ImageWrapper } from "$lib/utils/image-utils";
   import { generationConfigStore } from "$lib/stores/generationConfig";
   import {
+    downloadBlob,
+    renderGeneratedImageBlob,
+  } from "$lib/utils/export-utils";
+  import {
     playbackSequencesToPixelColors,
     type PlayableSequence,
   } from "$lib/utils/music-utils";
@@ -49,6 +53,7 @@
   let renderedPixelWidth = $state(0);
   let renderedPixelHeight = $state(0);
   let hasGeneratedSequence = $derived($generationConfigStore.sequence != null);
+  let isDownloadingGeneratedImage = $state(false);
   let generatedDownloadName = $derived(
     `${(selectedFile?.name ?? "generated-image").replace(/\.[^/.]+$/, "")}-generated.png`,
   );
@@ -470,26 +475,27 @@
     animationFrame = requestAnimationFrame(step);
   }
 
-  function downloadGeneratedImage() {
-    if (
-      !generatedCanvas ||
-      !hasGeneratedSequence ||
-      generatedCanvas.width <= 0 ||
-      generatedCanvas.height <= 0
-    ) {
-      return;
+  async function downloadGeneratedImage() {
+    const file = selectedFile;
+    const sequence = $generationConfigStore.sequence;
+
+    if (!file || !sequence || isDownloadingGeneratedImage) return;
+
+    isDownloadingGeneratedImage = true;
+
+    try {
+      const blob = await renderGeneratedImageBlob({
+        imageFile: file,
+        sequence,
+        pixelationAmount: targetPixelSize,
+      });
+
+      downloadBlob(blob, generatedDownloadName);
+    } catch (error) {
+      console.error("Failed to render the generated image.", error);
+    } finally {
+      isDownloadingGeneratedImage = false;
     }
-
-    generatedCanvas.toBlob((blob) => {
-      if (!blob) return;
-
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = generatedDownloadName;
-      link.click();
-      URL.revokeObjectURL(objectUrl);
-    }, "image/png");
   }
 
   $effect(() => {
@@ -619,15 +625,15 @@
         <button
           id="download-generated-canvas"
           type="button"
-          disabled={!hasGeneratedSequence || isLoading}
+          disabled={!hasGeneratedSequence || isLoading || isDownloadingGeneratedImage}
           class={`rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
-            hasGeneratedSequence && !isLoading
+            hasGeneratedSequence && !isLoading && !isDownloadingGeneratedImage
               ? "border-sky-300 bg-sky-100 text-sky-950"
               : "cursor-not-allowed border-neutral-800 bg-neutral-950 text-neutral-600"
           }`}
           onclick={downloadGeneratedImage}
         >
-          Download PNG
+          {isDownloadingGeneratedImage ? "Rendering..." : "Download PNG"}
         </button>
       </div>
     </div>

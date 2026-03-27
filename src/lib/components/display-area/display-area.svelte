@@ -19,7 +19,7 @@
 </script>
 
 {#if $fileSelected != null}
-  <div class="flex flex-col gap-4">
+  <div class="flex min-h-0 flex-col gap-4">
     <div class="flex flex-row gap-4">
       <ImageView pixelationAmount={$generationConfigStore.pixelationAmount} />
       <ImageContent imageWrapper={$processedImageStore} />
@@ -27,7 +27,7 @@
     <PlaybackCard />
   </div>
 {:else}
-  <div class="flex flex-col w-full bg-background h-screen">
+  <div class="flex h-full w-full flex-col bg-background">
     <Empty.Root>
       <Empty.Header>
         <Empty.Media variant="icon">

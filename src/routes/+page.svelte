@@ -36,7 +36,7 @@
 </script>
 
 <main
-  class="flex h-screen w-screen flex-row transition-colors duration-2000 ease-out"
+  class="flex h-full min-h-0 w-full flex-row overflow-hidden transition-colors duration-2000 ease-out"
   style={`background: ${mainBackground};`}
 >
   <ConfigBar />
