@@ -29,6 +29,17 @@ const normalizeRawHtmlTag = (tag: string) =>
 const buildImageTag = (alt: string, url: string) =>
   `<img src="${escapeHtml(normalizeImageUrl(url))}" alt="${escapeHtml(alt)}" loading="lazy" />`;
 
+const normalizeLanguage = (value: string) => {
+  const language = value.trim().toLowerCase();
+
+  if (!language) return "plaintext";
+  if (language === "ts") return "typescript";
+  if (language === "js") return "javascript";
+  if (language === "sh" || language === "zsh") return "bash";
+
+  return language;
+};
+
 const applyInlineMarkdown = (value: string) => {
   const preservedTags: string[] = [];
   const preservedMath: string[] = [];
@@ -99,7 +110,7 @@ export const renderMarkdown = (markdown: string) => {
 
     if (trimmed.startsWith("```")) {
       const codeLines: string[] = [];
-      const language = trimmed.slice(3).trim();
+      const language = normalizeLanguage(trimmed.slice(3).trim());
       index += 1;
 
       while (index < lines.length && !lines[index].trim().startsWith("```")) {
@@ -111,8 +122,11 @@ export const renderMarkdown = (markdown: string) => {
         index += 1;
       }
 
+      const code = escapeHtml(codeLines.join("\n"));
+      const languageLabel = language === "plaintext" ? "text" : language;
+
       blocks.push(
-        `<pre class="overflow-x-auto rounded-2xl border border-white/10 bg-black/40 p-4 text-sm leading-6 text-white"><code${language ? ` data-language="${escapeHtml(language)}"` : ""}>${escapeHtml(codeLines.join("\n"))}</code></pre>`,
+        `<div class="code-block"><div class="code-block__header"><span class="code-block__label">${escapeHtml(languageLabel)}</span></div><pre class="code-block__pre overflow-x-auto rounded-b-2xl border border-t-0 border-white/10 bg-black/55 p-4 text-sm leading-6 text-white"><code class="language-${escapeHtml(language)}" data-language="${escapeHtml(language)}">${code}</code></pre></div>`,
       );
       continue;
     }

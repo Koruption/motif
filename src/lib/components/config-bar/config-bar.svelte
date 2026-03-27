@@ -29,6 +29,7 @@
   let generated = $state(false);
   let isGenerating = $state(false);
   let lastGeneratedBpm = $state<number | null>(null);
+  let hasSelectedFile = $derived($filePickerStore.files.at(-1) != null);
 
   let macros = $state<MacroControls>();
 
@@ -239,6 +240,7 @@
                     max={100}
                     step={1}
                     class="w-full"
+                    disabled={!hasSelectedFile}
                   />
                 </div>
                 <div class="flex flex-col gap-4">
@@ -250,6 +252,7 @@
                       max={180}
                       step={1}
                       class="w-full"
+                      disabled={!hasSelectedFile}
                     />
                   </div>
                 </div>

@@ -42,13 +42,15 @@
       <Empty.Content>
         <div class="flex gap-2">
           <Button onclick={onUploadImageSelected}>Upload Image</Button>
-          <Button variant="outline">Import Project</Button>
         </div>
       </Empty.Content>
-      <Button variant="link" class="text-muted-foreground" size="sm">
-        <a href="#/">
-          Learn More <ArrowUpRightIcon class="inline" />
-        </a>
+      <Button
+        variant="link"
+        class="text-muted-foreground"
+        size="sm"
+        href="/docs"
+      >
+        Learn More <ArrowUpRightIcon class="inline" />
       </Button>
     </Empty.Root>
   </div>

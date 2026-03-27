@@ -3,6 +3,7 @@
   import "../app.css";
 
   import { Button } from "$lib/components/ui/button/index.js";
+  import SplashScreen from "$lib/components/splash-screen/splash-screen.svelte";
   import { Toaster } from "$lib/components/ui/sonner/index.js";
   import { filePickerStore } from "$lib/stores/filePicker";
   import { generationConfigStore } from "$lib/stores/generationConfig";
@@ -12,17 +13,45 @@
   } from "$lib/utils/export-utils";
   import BrandGithub from "@tabler/icons-svelte/icons/brand-github";
   import Download from "@tabler/icons-svelte/icons/download";
+  import { onMount } from "svelte";
   import { toast } from "svelte-sonner";
 
   let { children } = $props();
   let isExporting = $state(false);
+  let appVisible = $state(false);
+  let splashExiting = $state(false);
+  let showSplash = $state(true);
 
   const githubUrl = "https://github.com/Koruption/motif";
+  const splashVisibleMs = 900;
+  const splashFadeMs = 500;
 
   const exportLabel = $derived(isExporting ? "Exporting..." : "Export ZIP");
   const canExport = $derived(
     $generationConfigStore.sequence != null && $filePickerStore.files.at(-1) != null,
   );
+
+  onMount(() => {
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const visibleDelay = prefersReducedMotion ? 180 : splashVisibleMs;
+    const fadeDelay = prefersReducedMotion ? 120 : splashFadeMs;
+
+    const fadeInTimeout = window.setTimeout(() => {
+      appVisible = true;
+      splashExiting = true;
+    }, visibleDelay);
+
+    const hideTimeout = window.setTimeout(() => {
+      showSplash = false;
+    }, visibleDelay + fadeDelay);
+
+    return () => {
+      window.clearTimeout(fadeInTimeout);
+      window.clearTimeout(hideTimeout);
+    };
+  });
 
   async function exportGeneratedAssets() {
     const imageFile = $filePickerStore.files.at(-1);
@@ -59,7 +88,15 @@
 
 <Toaster />
 
-<div class="flex h-screen min-h-0 flex-col overflow-hidden bg-black text-foreground">
+{#if showSplash}
+  <SplashScreen isExiting={splashExiting} />
+{/if}
+
+<div
+  class={`flex h-screen min-h-0 flex-col overflow-hidden bg-black text-foreground transition-all duration-700 ease-out ${
+    appVisible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+  }`}
+>
   <header class="border-b border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl">
     <div class="flex items-center justify-between gap-3">
       <a
@@ -70,6 +107,13 @@
       </a>
 
       <div class="flex items-center gap-2">
+        <a
+          href="/docs"
+          class="rounded-full px-3 py-2 text-sm font-medium text-white/72 transition hover:bg-white/6 hover:text-white"
+        >
+          Docs
+        </a>
+
         <a
           href="/how-it-works"
           class="rounded-full px-3 py-2 text-sm font-medium text-white/72 transition hover:bg-white/6 hover:text-white"
